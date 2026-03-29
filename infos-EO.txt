@@ -1,0 +1,5 @@
+PostgreSQL mdp : postgresql123
+---------------------------------
+login info:
+admin email: admin@averda.ma 
+admin password: Admin@2026
