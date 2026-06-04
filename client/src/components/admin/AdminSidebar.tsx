@@ -1,22 +1,16 @@
-import {
-  BarChart2,
-  BookOpen,
-  LayoutDashboard,
-  LogOut,
-  Settings,
-  Truck,
-  Users,
-} from "lucide-react";
+import { BarChart2, BookOpen, LayoutDashboard, LogOut, Settings, Users } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
+import AverdaLogo from "@/assets/averda_logo.png";
+import { RoleAvatar } from "@/components/employee/ui/RoleAvatar";
 
 const items = [
   { to: "/admin", icon: LayoutDashboard, labelKey: "nav.dashboard" as const, end: true },
   { to: "/admin/employees", icon: Users, labelKey: "nav.employees" as const, end: false },
   { to: "/admin/courses", icon: BookOpen, labelKey: "nav.courseMgmt" as const, end: false },
   { to: "/admin/analytics", icon: BarChart2, labelKey: "nav.analytics" as const, end: false },
-  { to: "/admin/settings", icon: Settings, labelKey: "common.settings" as const, end: false },
+  { to: "/admin/settings", icon: Settings, labelKey: "common.settings" as const, end: true },
 ];
 
 type Props = {
@@ -30,33 +24,32 @@ export function AdminSidebar({ mobileOpen, onNavigate }: Props) {
   const nav = useNavigate();
   const { state, logout } = useAuth();
   const adminName = state.kind === "admin" ? state.user.name : "";
-  const initials = (adminName || "AD").slice(0, 2).toUpperCase();
-
-  const panelVisibility = mobileOpen
-    ? "translate-x-0"
-    : "-translate-x-full rtl:translate-x-full md:translate-x-0 md:rtl:translate-x-0";
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition ${
+    `flex items-center gap-2 rounded-full px-3 py-2 text-[13.5px] transition ${
       isActive
-        ? "bg-[#6366F1] text-white shadow-sm"
-        : "text-slate-400 hover:bg-indigo-500/10 hover:text-white"
+        ? "bg-white text-[#1e3a5f] font-extrabold shadow-sm"
+        : "text-white/70 hover:bg-white/20 hover:text-white"
     }`;
 
   return (
     <aside
-      className={`fixed inset-y-0 start-0 z-50 flex h-screen w-[240px] flex-col border-e border-[#30363D] bg-[#1E293B] text-white transition-transform duration-200 ease-out dark:bg-[#161B22] ${panelVisibility}`}
+      className={`fixed inset-y-0 start-0 z-50 grid h-[100dvh] max-h-[100dvh] w-[88vw] max-w-[320px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-e border-white/10 bg-[#1e3a5f] text-white shadow-2xl transition-transform duration-200 ease-out md:w-[240px] md:max-w-none md:shadow-none ${
+        mobileOpen
+          ? "translate-x-0"
+          : "max-md:-translate-x-full max-md:rtl:translate-x-full md:translate-x-0"
+      }`}
       aria-label={t("admin.sidebar.aria")}
     >
-      <div className="flex h-16 shrink-0 items-center gap-2 border-b border-white/10 px-4">
-        <Truck className="h-8 w-8 shrink-0 text-[#6366F1]" aria-hidden />
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-bold tracking-tight">FleetLearn</p>
-          <p className="truncate text-xs font-medium text-slate-400">{t("admin.sidebar.adminLabel")}</p>
+      <div className="flex h-16 items-center gap-3 border-b border-white/15 px-4">
+        <img src={AverdaLogo} alt="Averda" className="h-7 w-auto rounded bg-white/95 p-1" />
+        <div className="min-w-0 text-white">
+          <p className="truncate text-[14px] font-extrabold leading-tight">Averda Academy</p>
+          <p className="truncate text-[12px] font-medium text-white/70">{t("admin.sidebar.adminLabel")}</p>
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      <nav className="min-h-0 space-y-1 overflow-y-auto overscroll-contain p-3">
         {items.map(({ to, icon: Icon, labelKey, end }) => (
           <NavLink
             key={to}
@@ -65,19 +58,23 @@ export function AdminSidebar({ mobileOpen, onNavigate }: Props) {
             onClick={onNavigate}
             className={navLinkClass}
           >
-            <Icon className="h-5 w-5 shrink-0" aria-hidden />
+            <Icon className="h-4 w-4 shrink-0" aria-hidden />
             <span className="truncate">{t(labelKey)}</span>
           </NavLink>
         ))}
       </nav>
 
-      <div className="border-t border-white/10 p-4">
-        <div className="mb-3 flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#6366F1] text-xs font-bold text-white">
-            {initials}
-          </div>
-          <p className="min-w-0 flex-1 truncate text-sm font-medium text-white">{adminName || "Admin"}</p>
-        </div>
+      <div className="border-t border-white/15 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <NavLink
+          to="/admin/settings"
+          end
+          onClick={onNavigate}
+          className="mb-3 flex cursor-pointer items-center gap-3 rounded-full px-2 py-1.5 transition hover:bg-white/20 hover:text-white"
+        >
+          <RoleAvatar kind="manager" className="h-10 w-10 shrink-0" title={adminName || "Admin"} />
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{adminName || "Admin"}</p>
+        </NavLink>
+        <div className="mb-3 h-px bg-white/15" aria-hidden />
         <button
           type="button"
           onClick={() => {
@@ -85,7 +82,7 @@ export function AdminSidebar({ mobileOpen, onNavigate }: Props) {
             onNavigate();
             nav("/admin/login");
           }}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-red-300 transition hover:bg-red-500/10"
+          className="flex w-full items-center gap-2 rounded-full px-3 py-2.5 text-sm font-semibold text-white/70 transition hover:bg-white/20 hover:text-white"
         >
           <LogOut className="h-4 w-4 shrink-0" aria-hidden />
           {t("common.logout")}

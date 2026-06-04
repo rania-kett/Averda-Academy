@@ -9,6 +9,8 @@ import { adminApi } from "@/api/api";
 import { useToast } from "@/context/ToastContext";
 import { Plus, X } from "lucide-react";
 import { adminMuted, adminTableWrap } from "@/components/admin/adminClasses";
+import { RoleAvatar } from "@/components/employee/ui/RoleAvatar";
+import { AdminCategoryBadge } from "@/components/admin/AdminCategoryBadge";
 
 const btnSecondary =
   "rounded-lg border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#0F172A] shadow-sm hover:bg-slate-50 dark:border-transparent dark:bg-white/10 dark:text-white dark:shadow-none dark:hover:bg-white/15";
@@ -27,6 +29,7 @@ type EmpRow = {
   name: string;
   group: string;
   avatarColor: string;
+  category?: { code?: string } | null;
   coursesDone: number;
   coursesTotal: number;
   avgScore: number;
@@ -34,9 +37,26 @@ type EmpRow = {
   status: string;
 };
 
+function getAvgScoreColor(score: number): string {
+  if (score >= 70) return "#22c55e";
+  if (score >= 40) return "#f59e0b";
+  return "#ef4444";
+}
+
+function getStatusPillClass(status: string): string {
+  if (status === "completed") {
+    return "bg-[#DCFCE7] text-[#15803d] dark:bg-emerald-500/15 dark:text-emerald-200";
+  }
+  if (status === "in_progress" || status === "incomplete") {
+    return "bg-[#DBEAFE] text-[#1d4ed8] dark:bg-blue-500/15 dark:text-blue-200";
+  }
+  return "bg-[#F3F4F6] text-[#4B5563] dark:bg-white/10 dark:text-slate-300";
+}
+
 export function EmployeesPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const toast = useToast();
+  const lang = i18n.language.startsWith("ar") ? "ar" : i18n.language.startsWith("fr") ? "fr" : "en";
   const [rows, setRows] = useState<EmpRow[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -75,6 +95,12 @@ export function EmployeesPage() {
     e.preventDefault();
     setPage(1);
     void load();
+  };
+
+  const groupLabel = (row: EmpRow) => {
+    if (!row.group || row.group === "undefined" || row.group === "group.undefined") return "—";
+    const translated = t(`group.${row.group}` as "group.DRIVER");
+    return !translated || translated === "group.undefined" ? "—" : translated;
   };
 
   return (
@@ -155,26 +181,46 @@ export function EmployeesPage() {
                 >
                   <td className="p-3">
                     <div className="flex items-center gap-2">
-                      <div
-                        className="h-9 w-9 rounded-full text-center text-sm leading-9 text-white"
-                        style={{ backgroundColor: r.avatarColor }}
-                      >
-                        {r.name.slice(0, 2)}
+                      <RoleAvatar
+                        categoryCode={(r.category as any)?.code ?? null}
+                        employeeId={r.employeeId}
+                        className="h-9 w-9"
+                        title={r.name}
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold">{r.name}</div>
+                        <div className="mt-1">
+                          <AdminCategoryBadge code={(r.category as any)?.code ?? null} lang={lang} />
+                        </div>
                       </div>
-                      {r.name}
                     </div>
                   </td>
                   <td className="p-3 font-mono">{r.employeeId}</td>
-                  <td className="p-3">{t(`group.${r.group}` as "group.DRIVER")}</td>
+                  <td className="p-3">{groupLabel(r)}</td>
                   <td className="p-3 tabular-nums">
                     {r.coursesDone}/{r.coursesTotal}
                   </td>
-                  <td className="p-3 tabular-nums">{r.avgScore}%</td>
+                  <td className="p-3">
+                    <div className="flex min-w-[120px] items-center gap-2">
+                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-[#E5E7EB] dark:bg-white/10">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${Math.max(0, Math.min(100, r.avgScore))}%`,
+                            backgroundColor: getAvgScoreColor(r.avgScore),
+                          }}
+                        />
+                      </div>
+                      <span className="w-10 text-end text-xs font-extrabold tabular-nums" style={{ color: getAvgScoreColor(r.avgScore) }}>
+                        {r.avgScore}%
+                      </span>
+                    </div>
+                  </td>
                   <td className="p-3 text-xs text-admin-muted">
                     {new Date(r.lastActiveAt).toLocaleDateString()}
                   </td>
                   <td className="p-3">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-[#0F172A] dark:bg-white/10 dark:text-white">
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-extrabold ${getStatusPillClass(r.status)}`}>
                       {t(`status.${r.status}` as "status.completed" | "status.in_progress" | "status.not_started")}
                     </span>
                   </td>

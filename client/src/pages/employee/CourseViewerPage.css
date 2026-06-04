@@ -1,0 +1,44 @@
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+.open-course-btn {
+  animation: pulse 2s infinite;
+}
+
+@media (max-width: 768px) {
+  .pdf-action-buttons {
+    display: none !important;
+  }
+}
+/* Mobile-only PDF layout: overrides react-pdf inline sizing so the page uses full strip width. Desktop untouched (see CourseViewerPage.tsx). */
+@media (max-width: 768px) {
+  .course-viewer-pdf-shell .react-pdf__Document {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: flex !important;
+    justify-content: flex-start !important;
+    align-items: flex-start !important;
+  }
+
+  .course-viewer-pdf-shell .react-pdf__Page {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .course-viewer-pdf-shell .react-pdf__Page__canvas,
+  .course-viewer-pdf-shell canvas {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    object-fit: contain;
+  }
+}

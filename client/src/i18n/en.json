@@ -1,10 +1,21 @@
 {
-  "app": { "name": "FleetLearn", "tagline": "Training & safety" },
+  "app": { "name": "Averda Academy", "tagline": "Training & safety" },
+  "course": {
+    "pdfUnavailable": "No PDF uploaded yet. Please ask your administrator."
+  },
+  "training": {
+    "chips": {
+      "roleSkills": "Role Skills",
+      "equipment": "Equipment",
+      "safety": "Safety"
+    }
+  },
   "common": {
     "loading": "Loading…",
     "error": "Something went wrong",
     "retry": "Retry",
     "save": "Save",
+    "saving": "Saving…",
     "cancel": "Cancel",
     "delete": "Delete",
     "edit": "Edit",
@@ -31,8 +42,13 @@
     "settings": "Settings",
     "notifications": "Notifications",
     "language": "Language",
+    "langEnglish": "English",
+    "langFrench": "Français",
+    "langArabic": "العربية",
     "noData": "No data yet",
     "sendReminder": "Send reminder",
+    "reminderSent": "Reminder sent",
+    "explanation": "Explanation",
     "add": "Add",
     "preview": "Preview PDF",
     "toggleActive": "Toggle active",
@@ -47,20 +63,31 @@
     "quizGenOk": "Quiz generated successfully",
     "progressSaved": "Progress saved",
     "featureComingSoon": "Feature coming soon",
-    "apiKeyRequired": "Anthropic API key required. Set ANTHROPIC_API_KEY on the server.",
+    "apiKeyRequired": "Gemini API key required. Set GEMINI_API_KEY on the server.",
     "openMenu": "Open menu",
     "expandMenu": "Expand sidebar",
     "collapseMenu": "Collapse sidebar",
     "themeLight": "Switch to light mode",
-    "themeDark": "Switch to dark mode"
+    "themeDark": "Switch to dark mode",
+    "pagination": {
+      "prev": "Previous",
+      "next": "Next",
+      "pageOf": "Page {{current}} / {{total}}"
+    }
   },
   "login": {
+    "portalBadge": "Employee portal",
+    "signInCta": "Sign in",
+    "employeeIdBilingual": "Employee ID",
     "title": "Employee login",
     "employeeId": "Employee ID",
-    "employeeIdPh": "e.g. AVR-DRV-001",
+    "employeeIdPh": "e.g. AV000001",
+    "employeeIdDigitsPh": "e.g. 000001",
+    "employeeIdDigitsAria": "Enter 6 digits for employee ID",
     "pin": "PIN",
     "submit": "Sign in",
     "error": "Invalid ID or PIN",
+    "networkError": "Cannot reach the server. Run the full app from the project root: npm run dev",
     "shake": "Check your credentials"
   },
   "adminLogin": {
@@ -68,12 +95,16 @@
     "email": "Email",
     "password": "Password",
     "submit": "Sign in",
-    "error": "Invalid email or password"
+    "error": "Invalid email or password",
+    "networkError": "Cannot reach the server. Run from project root: npm run dev"
   },
   "nav": {
     "employeeBar": "Main navigation",
     "home": "Home",
     "courses": "Courses",
+    "myTraining": "My Training",
+    "challenges": "Challenges",
+    "profile": "Profile",
     "dashboard": "Dashboard",
     "employees": "Employees",
     "analytics": "Analytics",
@@ -88,6 +119,160 @@
     "EN": "English"
   },
   "employee": {
+    "challenges": {
+      "title": "Challenges",
+      "subtitle": "Complete challenges to earn badges and rewards.",
+      "empty": "No challenges right now.",
+      "groups": {
+        "onboarding": "🧩 Onboarding",
+        "operational": "🦺 Operations & PPE",
+        "learning": "📚 Learning",
+        "performance": "⚡ Performance",
+        "final": "🛡️ Final"
+      },
+      "labels": { "tasks": "Tasks", "impact": "Impact", "badges": "Badges" },
+      "status": { "completed": "✓ Completed", "inProgress": "In progress" }
+    },
+    "homeDash": {
+      "formations": { "title": "Courses", "pill": "View", "hint": "{{n}} remaining" },
+      "tasks": { "title": "Tasks", "pill": "To do", "hint": "Tap to see details" },
+      "continue": { "title": "Continue", "hint": "Pick up where you left off" },
+      "badges": {
+        "title": "Badges",
+        "pill": "Level {{level}}",
+        "value": "{{n}} badges",
+        "hint": "Keep going to unlock the next one"
+      }
+    },
+    "profileDash": {
+      "formations": { "title": "Courses completed" },
+      "quizAvg": { "title": "Quiz average" },
+      "time": { "title": "Learning time", "value": "{{minutes}} min", "hint": "Total accumulated time" },
+      "epi": {
+        "title": "My equipment",
+        "subtitle": "{{n}} items not validated",
+        "pillOk": "Validated",
+        "pillWarn": "Check",
+        "empty": "No equipment",
+        "alert": "{{n}} PPE items not validated — check before your next shift"
+      },
+      "levelBadges": { "title": "Level & badges", "level": "Level {{level}} — {{xp}} XP" }
+    },
+    "epi": {
+      "title": "EPI equipment",
+      "subtitle": "Track your PPE and request replacements easily",
+      "badgeNew": "New",
+      "manageCta": "Manage my equipment",
+      "receipt": { "title": "Equipment reception", "progress": "{{received}} of {{total}} items received" },
+      "kpis": {
+        "received": "Received ({{n}})",
+        "pending": "Pending ({{n}})",
+        "needs": "Needs action ({{n}})"
+      },
+      "sizes": {
+        "title": "My sizes",
+        "hint": "Enter your sizes so we can provide the right equipment.",
+        "cta": "Set my sizes",
+        "edit": "Edit sizes",
+        "modalTitle": "Choose your sizes",
+        "save": "Save sizes",
+        "shirt": "Shirt: {{v}}",
+        "shoe": "Shoes: {{v}}",
+        "gloves": "Gloves: {{v}}",
+        "vest": "Vest: {{v}}",
+        "pants": "Pants: {{v}}",
+        "labels": {
+          "shirt": "Shirt",
+          "shoe": "Shoes",
+          "gloves": "Gloves",
+          "vest": "Vest",
+          "pantsOptional": "Pants (optional)"
+        }
+      },
+      "items": {
+        "title": "My equipment",
+        "assigned": "Assigned",
+        "notAssigned": "Not assigned yet",
+        "codes": {
+          "veste_hv": "Hi-Vis Vest",
+          "gilet_hv": "Hi-Vis Gilet",
+          "veste_chef": "Team leader jacket",
+          "pull_hiver": "Winter Pullover",
+          "tee_shirt": "T-Shirt",
+          "pantalon": "Work Trousers",
+          "combinaison": "Coverall",
+          "chaussures": "Safety Shoes",
+          "gants": "Work Gloves",
+          "gants_renforces": "Reinforced Gloves",
+          "casquette": "Cap",
+          "casquette_cache_nuque": "Neck Flap Cap",
+          "bonnet": "Winter Beanie",
+          "masque": "Dust Mask",
+          "lunettes": "Safety Glasses",
+          "protection_auditive": "Ear Protection",
+          "impermeable": "Rain Coat",
+          "chemise": "Shirt"
+        }
+      },
+      "status": {
+        "received": "Received",
+        "pending": "Pending",
+        "issued": "Pending",
+        "needs": "Needs attention",
+        "needsRenewal": "Needs renewal",
+        "needsReplacement": "Needs replacement",
+        "notReceived": "Not received",
+        "notIssued": "Not issued",
+        "expired": "Expired",
+        "replaced": "Replaced"
+      },
+      "renew": { "title": "Replacement request", "hint": "You have items that need replacement. Open an item and tap “Request replacement”." },
+      "itemSheet": {
+        "statusTitle": "Item status",
+        "scale": { "assigned": "Assigned", "active": "Active", "worn": "Worn", "replace": "Replace" },
+        "confirmReception": "Confirm reception",
+        "requestReplacement": "Request replacement",
+        "notRecorded": "This item has not been recorded yet."
+      },
+      "reception": {
+        "title": "Reception confirmation",
+        "notifySupervisor": "Notify supervisor of reception",
+        "fitOk": "Size fits",
+        "signatureOptional": "Signature (optional)",
+        "signaturePlaceholder": "Your name",
+        "noteOptional": "Note (optional)",
+        "notePlaceholder": "Example: size needs changing…",
+        "confirm": "Confirm"
+      },
+      "replacement": {
+        "title": "Replacement request",
+        "reasonTitle": "Reason",
+        "noteTitle": "Additional note (optional)",
+        "notePlaceholder": "Write a short note",
+        "send": "Send request",
+        "sentTitle": "Request sent successfully",
+        "sentHint": "An administrator will contact you soon.",
+        "reasons": {
+          "damaged": "Damaged",
+          "lost": "Lost",
+          "wrongSize": "Wrong size",
+          "expired": "Expired",
+          "other": "Other"
+        }
+      },
+      "toasts": {
+        "sizesSaved": "Sizes saved",
+        "receptionConfirmed": "Reception confirmed",
+        "replacementSent": "Request sent"
+      },
+      "errors": {
+        "dbMigrationRequired": "This feature requires a database update first.",
+        "loadFailed": "Could not load PPE data.",
+        "saveSizesFailed": "Could not save sizes. Please try again.",
+        "confirmReceptionFailed": "Could not confirm reception.",
+        "replacementFailed": "Could not send request."
+      }
+    },
     "greeting": "Hello, {{name}}",
     "greetingAr": "Welcome, {{name}}",
     "overallProgress": "Overall progress",
@@ -96,6 +281,25 @@
     "continue": "Continue learning",
     "noContinue": "Pick a course to start",
     "badges": "Badges",
+    "badgesPage": {
+      "title": "My badges",
+      "locked": "Locked",
+      "unlocked": "Unlocked"
+    },
+    "badgeName": {
+      "safety_starter": "Safety Starter",
+      "quiz_master": "Quiz Master",
+      "consistent_learner": "Consistent Learner",
+      "safety_compliant": "Safety Compliant",
+      "perfect_fit": "Perfect Fit",
+      "fully_equipped": "Fully Equipped",
+      "detail_oriented": "Detail Oriented",
+      "quick_responder": "Quick Responder",
+      "challenge_trifecta": "Challenge Trigger",
+      "active_user": "Active User",
+      "top_performer": "Top Performer",
+      "safety_champion": "Safety Champion"
+    },
     "locked": "Locked",
     "stats": { "streak": "Day streak", "avgScore": "Avg quiz score", "certs": "Certificates" },
     "seeAll": "See all",
@@ -113,13 +317,73 @@
       "markComplete": "Mark as complete",
       "takeQuiz": "Take the quiz",
       "pageOf": "Page {{current}} / {{total}}",
+      "pdfPageOf": "Page {{current}} of {{total}}",
+      "pdfLoadError": "Failed to load file, please try again",
+      "pdfRetry": "Retry",
+      "pdfAlternativeViewer": "Alternative viewer",
+      "pdfBackToBuiltIn": "Built-in viewer",
+      "openPdfNewTab": "Open PDF",
+      "pdfViewGoogle": "Google viewer",
+      "pdfViewDirect": "Direct embed",
+      "pdfDownloadMode": "Open-only mode",
+      "pdfOpenExternalShort": "Open externally",
+      "pdfInlineUnavailable": "This PDF can’t be shown inline in the browser. Open it in a new tab instead.",
+      "pdfBlobLoading": "Loading document…",
+      "pdfIframeTitle": "PDF document",
       "prev": "Previous",
       "next": "Next",
-      "quizSoonLong": "Quiz will be available when your administrator generates it."
+      "slideXofY": "Slide {{current}} of {{total}}",
+      "expand": "Expand",
+      "close": "Close",
+      "quizSoonLong": "Quiz will be available when your administrator generates it.",
+      "startLessonQuiz": "Start quiz 📝",
+      "latestLessonQuizResult": "Latest result: {{pct}}% ({{score}}/{{total}})",
+      "startTrafficQuiz": "Take the quiz 📝",
+      "trafficQuizTitle": "Quiz: Traffic law"
+    },
+    "assessmentBanner": {
+      "title": "Level assessment",
+      "subtitle": "Answer 10 questions so we can assign the right courses to you",
+      "startCta": "Start the test",
+      "requiredNote": "Required before accessing courses",
+      "failTitle": "You did not pass — try again",
+      "failSubtitle": "You need at least 70% to unlock courses.",
+      "retryCta": "Retake assessment"
+    },
+    "assessmentModal": {
+      "saveFailed": "Could not save. Please try again.",
+      "quiz": {
+        "progress": "Question {{current}} of {{total}}",
+        "streak": "{{n}} correct answers in a row!",
+        "next": "Next"
+      },
+      "results": {
+        "badges": { "excellent": "Excellent!", "good": "Good", "needsReview": "Needs review" },
+        "msgPass": "Well done! You’ve demonstrated strong safety fundamentals. Your courses are ready.",
+        "msgFail": "No worries — the HSSEQ foundation course will help you strengthen your knowledge.",
+        "reviewTitle": "Answer review",
+        "yourAnswer": "Your answer:",
+        "correctAnswer": "Correct:",
+        "noAnswer": "—",
+        "cta": "Start learning now"
+      }
     },
     "profile": {
+      "title": "Profile",
       "menu": "Account",
-      "langLabel": "Language preference"
+      "langLabel": "Language preference",
+      "employeeId": "Employee ID",
+      "group": "Group",
+      "language": "Language",
+      "statsTitle": "Your statistics",
+      "coursesCompleted": "Courses completed",
+      "avgScore": "Average quiz score",
+      "timeSpent": "Time spent learning",
+      "badgesTitle": "Earned badges",
+      "unlockedOn": "Unlocked on",
+      "noBadges": "No badges earned yet",
+      "saveLang": "Save language",
+      "logout": "Log out"
     },
     "quiz": {
       "of": "Question {{n}} of 10",
@@ -131,7 +395,125 @@
       "failedMsg": "Review the material and try again.",
       "tryAgain": "Try again",
       "backCourses": "Back to courses",
-      "review": "Explanation"
+      "review": "Explanation",
+      "mistakes": {
+        "back": "Back",
+        "title": "Review mistakes",
+        "empty": "No mistakes.",
+        "yourAnswer": "Your answer: ",
+        "correctAnswer": "Correct answer: ",
+        "explanation": "Explanation: ",
+        "retryMistakesOnly": "Retry mistakes only",
+        "retryFull": "Retry full quiz"
+      }
+    },
+    "layout": {
+      "settingsTitle": "Settings",
+      "appearance": "Appearance",
+      "darkMode": "Dark mode",
+      "aboutAverda": "About Averda",
+      "aboutAverdaCta": "About Averda",
+      "notificationsEmpty": "No notifications yet",
+      "markAllRead": "Mark all read",
+      "courseAudioSoon": "Course audio — coming soon",
+      "emergencyTitle": "Do you need urgent help?",
+      "emergencySubtitle": "Your supervisor will be contacted directly.",
+      "emergencyFab": "Emergency",
+      "emergencyCancel": "Cancel",
+      "emergencyCall": "Call now"
+    },
+    "home": {
+      "welcome": "Welcome, {{name}}!",
+      "intro": "I'm Averda Academy, your personal training companion at Averda.",
+      "motivate0": "Let's begin — your journey starts today 🚀",
+      "motivate40": "Good start — keep going, you've got this 💪",
+      "motivate79": "Great progress — you're more than halfway there 🔥",
+      "motivate99": "Almost done — one final push ⚡",
+      "motivate100": "Training complete — outstanding work 🏆",
+      "reminderTitle": "Today's reminder",
+      "reminderShuffleAria": "Another reminder",
+      "reminderShuffleTitle": "Show another reminder",
+      "statSafety": "Safety score",
+      "statCourses": "Courses",
+      "statTasks": "Tasks",
+      "trainingProgress": "Training progress",
+      "lessonsCompleted": "{{done}} of {{total}} lessons completed",
+      "myCourses": "My courses",
+      "statusCompleted": "Completed",
+      "statusInProgress": "In progress",
+      "statusNotStarted": "Not started",
+      "ctaReview": "Review",
+      "ctaContinue": "Continue ▷",
+      "ctaStart": "Start",
+      "hsseqRequiredPill": "Required",
+      "lockedCta": "Complete the assessment first 🔒",
+      "lockedBasicsCta": "Complete “Basic guidance” first 🔒",
+      "myBadges": "My badges",
+      "seeAllBadges": "See all",
+      "noBadgesYet": "No badges yet — start your first course!"
+    },
+    "basicsGate": {
+      "title": "Unlock your courses",
+      "subtitle": "Your assessment score is below 70%. Please complete the “Basic guidance” course and pass its quiz to unlock the rest.",
+      "cta": "Open Basic guidance",
+      "toast": "Please complete “Basic guidance” first."
+    },
+    "roleLabels": {
+      "chauffeur": "Driver",
+      "balayeur": "Sweeper",
+      "chargeur": "Loader",
+      "parc": "Yard agent",
+      "maintenance": "Maintenance",
+      "manager": "Supervisor",
+      "unknown": "Team"
+    },
+    "coursesExt": {
+      "emptyDesc": "Your administrator will assign courses soon.",
+      "filteredEmptyTitle": "No courses in this tab",
+      "filteredEmptyDesc": "Try another filter or start a course.",
+      "filteredCta": "Start",
+      "lessonQuizLatest": "Latest quiz: {{pct}}%",
+      "emptyCompletedTitle": "No completed courses yet",
+      "emptyInProgressTitle": "No courses in progress"
+    },
+    "dashboard": {
+      "formations": {
+        "title": "📚 Courses",
+        "value": "{{done}} of {{total}} completed",
+        "valueEmpty": "0 courses",
+        "helper": "Keep going — you're making progress.",
+        "helperZero": "Start a course to begin your progress."
+      },
+      "tasks": {
+        "title": "✅ Pending tasks",
+        "value": "{{n}} tasks remaining",
+        "valueZero": "No pending tasks",
+        "helper": "Finish courses to reduce this number.",
+        "helperZero": "Great — you're all caught up."
+      },
+      "time": {
+        "title": "⏱️ Learning time",
+        "value": "{{minutes}} minutes",
+        "valueZero": "0 minutes",
+        "helper": "Every minute counts toward your progress.",
+        "helperZero": "Start a course to track learning time."
+      },
+      "safety": {
+        "title": "🛡️ Safety score",
+        "helper": "Keep following best practices.",
+        "helperZero": "Complete courses to improve your score."
+      },
+      "quizAvg": {
+        "title": "📊 Quiz average",
+        "helper": "Your results improve with practice.",
+        "helperZero": "No quizzes completed yet."
+      },
+      "level": {
+        "title": "🏅 Level",
+        "value": "Level {{level}} — {{xp}} XP",
+        "helper": "Keep going to earn more XP.",
+        "helperZero": "Start a course to earn XP."
+      }
     }
   },
   "admin": {
@@ -181,6 +563,8 @@
       "resetConfirm": "This removes all progress for this employee.",
       "joinDate": "Joined",
       "langPref": "Language",
+      "courseQuiz": "Course quiz",
+      "lessonQuiz": "Lesson quiz",
       "quizHistory": "Quiz attempts",
       "progressSec": "Course progress"
     },
@@ -195,13 +579,17 @@
     "courses": {
       "title": "Course management",
       "add": "Add course",
+      "filterByCategory": "Filter by category",
       "empty": "No courses yet",
       "genQuiz": "Generate quiz",
       "pdfStatus": "PDF",
+      "noPdf": "No PDF",
       "quizStatus": "Quiz",
       "completion": "Completion rate",
       "updated": "Updated",
       "formTitle": "New course",
+      "active": "Active (visible to employees)",
+      "titleRequired": "Please enter a title in at least one language.",
       "titleAr": "Title (Arabic)",
       "titleFr": "Title (French)",
       "titleEn": "Title (English)",
@@ -209,12 +597,17 @@
       "descFr": "Description (French)",
       "descEn": "Description (English)",
       "target": "Target group",
+      "allCategories": "All categories",
+      "allCategoriesHint": "Select only this row to assign the course to everyone, or pick specific categories (Ctrl/Cmd + click).",
+      "pickCategory": "Select at least one category.",
       "targetBoth": "Both",
       "icon": "Icon",
       "color": "Card color",
       "dropPdf": "Drop PDF here or click",
       "genError": "Quiz generation failed",
-      "edit": "Edit course"
+      "quizNotGenerated": "Quiz not generated",
+      "edit": "Edit course",
+      "aiFillUnavailable": "Could not auto-fill from the PDF (AI). Check your connection and API key, or enter the fields manually."
     },
     "analytics": {
       "title": "Analytics",
@@ -228,6 +621,65 @@
     "settings": {
       "title": "Settings",
       "body": "Company and integration settings will appear here."
+    },
+    "quizResults": {
+      "sectionTitle": "Quiz results",
+      "avgAssessment": "Average assessment score (HSSEQ)",
+      "assessmentPassRate": "Assessment pass rate",
+      "avgLessonQuizzes": "Average lesson quizzes",
+      "totalLessonAttempts": "Total lesson quiz attempts",
+      "assessmentTableTitle": "Assessment quiz results",
+      "lessonAttemptsTitle": "Lesson quiz attempts",
+      "colEmployee": "Employee",
+      "colGroup": "Group",
+      "colPercent": "Score",
+      "colStatus": "Status",
+      "colDate": "Date",
+      "colCourse": "Course",
+      "colAttempt": "Attempt",
+      "colScore": "Result",
+      "colBest": "Best score",
+      "pass": "Pass",
+      "fail": "Fail"
+    },
+    "epi": {
+      "title": "PPE (EPI) tracking",
+      "subtitle": "Summary and per-employee traceability",
+      "kpiPending": "Pending replacement requests:",
+      "kpiMissingSizes": "Missing sizes:",
+      "colEmployee": "Employee",
+      "colSizes": "Sizes",
+      "colStatus": "Status",
+      "colRenewals": "Renewal requests",
+      "colUpdated": "Last update",
+      "sizeShirt": "Shirt",
+      "sizePants": "Pants",
+      "sizeShoe": "Shoes",
+      "sizeGloves": "Gloves",
+      "sizeVest": "Vest",
+      "statusNeedsFollowUp": "Needs follow-up",
+      "statusGood": "OK",
+      "itemsLine": "Items: {{total}} • Received: {{received}} • Expired: {{expired}}",
+      "empty": "No PPE data yet",
+      "emptyActivity": "No activity yet",
+      "emptyAtRisk": "No employees need follow-up",
+      "emptyTop": "No data yet"
+    },
+    "epiManage": {
+      "open": "Manage PPE",
+      "title": "PPE management",
+      "categoryDefaults": "Category defaults",
+      "issueSection": "Issue PPE",
+      "useDefaults": "Use defaults",
+      "issueHint": "Select an employee from the table to issue equipment.",
+      "issueBtn": "Issue",
+      "issueConfirm": "Issue selected equipment",
+      "selectAtLeastOne": "Select at least one item",
+      "issued": "Equipment issued",
+      "saved": "Defaults saved",
+      "loadFailed": "Could not load PPE management data",
+      "saveFailed": "Could not save defaults",
+      "issueFailed": "Could not issue equipment"
     }
   },
   "badge": {

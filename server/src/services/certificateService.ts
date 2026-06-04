@@ -27,7 +27,7 @@ export async function generateTrainingCertificate(params: {
   doc.lineWidth(2);
   doc.rect(30, 30, doc.page.width - 60, doc.page.height - 60).stroke("#6366F1");
 
-  doc.fontSize(10).fillColor("#333").text("FleetLearn", 50, 45);
+  doc.fontSize(10).fillColor("#333").text("Averda Academy", 50, 45);
   doc
     .fontSize(9)
     .text(

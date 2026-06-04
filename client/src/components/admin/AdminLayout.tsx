@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { Menu } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Menu, Settings } from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
@@ -12,6 +13,7 @@ export function AdminLayout() {
   const { t, i18n } = useTranslation();
   const { state } = useAuth();
   const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
   const adminName = state.kind === "admin" ? state.user.name : "";
   const initials = (adminName || "AD").slice(0, 2).toUpperCase();
 
@@ -20,6 +22,35 @@ export function AdminLayout() {
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
+
+  // Disable browser scroll restoration (admin uses an internal scroll container).
+  useEffect(() => {
+    try {
+      if ("scrollRestoration" in window.history) {
+        window.history.scrollRestoration = "manual";
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Always reset scroll to top on navigation.
+  useLayoutEffect(() => {
+    const el = mainRef.current;
+    // cover window-scroll pages too (e.g. login)
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+    } catch {
+      window.scrollTo(0, 0);
+    }
+    if (!el) return;
+    el.scrollTop = 0;
+    el.scrollLeft = 0;
+    requestAnimationFrame(() => {
+      el.scrollTop = 0;
+      el.scrollLeft = 0;
+    });
+  }, [location.pathname, location.search, location.hash, location.key]);
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
@@ -53,15 +84,32 @@ export function AdminLayout() {
             >
               <Menu className="h-6 w-6" />
             </button>
-            <span className="truncate font-semibold text-[#0F172A] dark:text-slate-100">
+            <span
+              className="truncate font-semibold text-[#1e3a5f] dark:text-slate-100"
+              style={{ fontFamily: "'Nunito', 'DM Sans', 'Segoe UI', Arial, sans-serif" }}
+            >
               {t("app.name")}
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <NavLink
+              to="/admin/settings"
+              className={({ isActive }) =>
+                `rounded-lg p-2 transition ${
+                  isActive
+                    ? "bg-[#1e3a5f]/10 text-[#1e3a5f] dark:bg-white/15 dark:text-white"
+                    : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+                }`
+              }
+              title={t("common.settings")}
+              aria-label={t("common.settings")}
+            >
+              <Settings className="h-5 w-5" aria-hidden />
+            </NavLink>
             <LanguageSwitcher variant="dark" />
             <ThemeToggle variant="admin" />
             <div className="flex items-center gap-2 border-s border-slate-200 ps-2 sm:ps-3 dark:border-slate-600">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#6366F1] text-xs font-bold text-white">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1e3a5f] text-xs font-bold text-white">
                 {initials}
               </div>
               <span className="hidden max-w-[140px] truncate text-sm font-medium text-[#0F172A] dark:text-slate-100 sm:inline">
@@ -72,7 +120,8 @@ export function AdminLayout() {
         </header>
 
         <motion.main
-          className="min-h-0 flex-1 overflow-auto p-4 text-start text-[#0F172A] md:p-6 dark:text-slate-100"
+          ref={mainRef}
+          className="min-h-0 flex-1 overflow-auto px-4 pb-4 pt-[calc(1rem+var(--app-content-gap,36px)*0.35)] text-start text-[#0F172A] md:px-6 md:pb-6 md:pt-[calc(1.5rem+var(--app-content-gap,36px)*0.35)] dark:text-slate-100"
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           key={i18n.language}

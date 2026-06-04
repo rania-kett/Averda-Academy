@@ -1,5 +1,5 @@
 import { StrictMode, useEffect } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { I18nextProvider } from "react-i18next";
 import i18n, { applyDocumentDirection } from "./i18n/i18n";
@@ -34,7 +34,14 @@ function Root() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(
+const container = document.getElementById("root")!;
+const g = globalThis as unknown as { __averdaAppRoot?: Root };
+let root = g.__averdaAppRoot;
+if (!root) {
+  root = createRoot(container);
+  g.__averdaAppRoot = root;
+}
+root.render(
   <StrictMode>
     <Root />
   </StrictMode>

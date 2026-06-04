@@ -4,12 +4,13 @@ import path from "path";
 import pdfParse from "pdf-parse";
 import { createCanvas } from "@napi-rs/canvas";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import { resolveAnthropicApiKey } from "../services/integrationKeys.js";
 
 const VISION_MODEL = "claude-sonnet-4-20250514";
 
-function getAnthropic(): Anthropic {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
+async function getAnthropic(): Promise<Anthropic> {
+  const key = await resolveAnthropicApiKey();
+  if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
   return new Anthropic({ apiKey: key });
 }
 
@@ -18,7 +19,7 @@ async function extractTextFromImagePng(
   pageNum: number,
   totalPages: number
 ): Promise<string> {
-  const client = getAnthropic();
+  const client = await getAnthropic();
   const base64 = pngBuffer.toString("base64");
   const msg = await client.messages.create({
     model: VISION_MODEL,
@@ -43,7 +44,7 @@ async function extractTextFromImagePng(
       },
     ],
   });
-  const block = msg.content.find((b) => b.type === "text");
+  const block = msg.content.find((b: { type: string }) => b.type === "text");
   if (block && block.type === "text") {
     return block.text.trim();
   }

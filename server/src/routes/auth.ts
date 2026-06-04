@@ -53,7 +53,6 @@ router.post(
           employeeId: user.employeeId,
           name: user.name,
           role: user.role,
-          group: user.group,
           language: user.language,
           avatarColor: user.avatarColor,
         },

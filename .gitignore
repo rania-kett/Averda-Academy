@@ -1,0 +1,48 @@
+# Node / JS
+node_modules/
+**/node_modules/
+client/node_modules/
+server/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+**/dist/
+client/dist/
+server/dist/
+client/tsconfig.tsbuildinfo
+
+# Vite / tooling caches
+client/node_modules/.vite/
+client/.vite/
+.vite/
+
+# Env files
+.env
+.env.*
+!.env.example
+client/.env.local
+
+# Prisma generated client artifacts (kept in node_modules anyway)
+server/node_modules/.prisma/
+
+# Uploads / generated files
+server/uploads/
+
+# Office / reports / local notes
+*.doc
+*.docx
+*.pdf
+!server/assets/placeholder.pdf
+!client/public/courses/**/*.pdf
+*.txt
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

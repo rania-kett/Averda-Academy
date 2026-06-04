@@ -24,6 +24,11 @@ export default {
           indigo: "#6366F1",
           emerald: "#10B981",
         },
+        averda: {
+          DEFAULT: "#1e3a5f",
+          dark: "#163056",
+          light: "#2d5a9e",
+        },
         employee: {
           bg: "var(--employee-bg)",
           card: "var(--employee-card)",

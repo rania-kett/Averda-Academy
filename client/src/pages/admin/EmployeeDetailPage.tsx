@@ -5,12 +5,14 @@ import { useTranslation } from "react-i18next";
 import { adminApi } from "@/api/api";
 import { useToast } from "@/context/ToastContext";
 import { AdminBackButton } from "@/components/admin/AdminBackButton";
+import { RoleAvatar, roleAvatarKindFromCategoryCode } from "@/components/employee/ui/RoleAvatar";
 import { adminCardPadded, adminMuted, adminTableWrap } from "@/components/admin/adminClasses";
+import { AdminCategoryBadge } from "@/components/admin/AdminCategoryBadge";
 
 type Emp = {
   name: string;
   employeeId: string;
-  group: "DRIVER" | "WORKER";
+  category?: { id: string; code: string; name: { fr?: string; en?: string; ar?: string } } | null;
   language: string;
   avatarColor: string;
   createdAt: string;
@@ -22,12 +24,20 @@ type Emp = {
     attemptedAt: string;
     quiz: { course: { id: string; title: unknown } };
   }[];
+  lessonQuizAttempts?: {
+    percentage: number;
+    score: number;
+    total: number;
+    attemptNumber: number;
+    takenAt: string;
+    course: { id: string; slug: string; title: unknown };
+  }[];
   badges: { badge: { icon: string; title: unknown } }[];
 };
 
 type AdminCourse = {
   id: string;
-  targetGroup: ("DRIVER" | "WORKER")[];
+  categories: { id: string; code: string; name: { fr?: string; en?: string; ar?: string } }[];
   quiz: { id: string } | null;
 };
 
@@ -39,6 +49,33 @@ export function EmployeeDetailPage() {
   const [courses, setCourses] = useState<AdminCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const lang = i18n.language.startsWith("ar") ? "ar" : i18n.language.startsWith("fr") ? "fr" : "en";
+
+  const attemptRows = useMemo(() => {
+    if (!emp) return [];
+    const rows: {
+      courseTitle: unknown;
+      at: string;
+      pct: number;
+      passed: boolean;
+    }[] = [];
+    for (const a of emp.attempts ?? []) {
+      rows.push({
+        courseTitle: a.quiz?.course?.title,
+        at: a.attemptedAt,
+        pct: a.score,
+        passed: Boolean(a.passed),
+      });
+    }
+    for (const a of emp.lessonQuizAttempts ?? []) {
+      rows.push({
+        courseTitle: a.course?.title,
+        at: a.takenAt,
+        pct: a.percentage,
+        passed: a.percentage >= 70,
+      });
+    }
+    return rows.sort((aa, bb) => new Date(bb.at).getTime() - new Date(aa.at).getTime());
+  }, [emp]);
 
   useEffect(() => {
     if (!id) return;
@@ -58,9 +95,8 @@ export function EmployeeDetailPage() {
 
   const certificateEligible = useMemo(() => {
     if (!emp || !courses.length) return false;
-    const visible = courses.filter(
-      (c) => c.targetGroup.length === 2 || c.targetGroup.includes(emp.group)
-    );
+    if (!emp.category?.id) return false;
+    const visible = courses.filter((c) => c.categories.some((k) => k.id === emp.category!.id));
     if (!visible.length) return false;
     for (const c of visible) {
       if (!c.quiz) return false;
@@ -71,9 +107,6 @@ export function EmployeeDetailPage() {
     }
     return true;
   }, [emp, courses]);
-
-  const groupLabel = (g: string) =>
-    t(`group.${g}` as "group.DRIVER");
 
   const downloadCert = async () => {
     if (!id || !certificateEligible) return;
@@ -108,16 +141,21 @@ export function EmployeeDetailPage() {
     <div className="space-y-8">
       <AdminBackButton to="/admin/employees" label={t("nav.backEmployees")} />
       <div className="flex flex-wrap items-start gap-6">
-        <div
-          className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold text-white"
-          style={{ backgroundColor: e.avatarColor }}
-        >
-          {e.name.slice(0, 2)}
-        </div>
+        <RoleAvatar
+          categoryCode={(e.category as any)?.code ?? null}
+          kind={roleAvatarKindFromCategoryCode((e.category as any)?.code, e.employeeId)}
+          className="h-20 w-20"
+          title={e.name}
+          employeeId={e.employeeId}
+        />
         <div>
           <h1 className="text-2xl font-bold">{e.name}</h1>
           <p className={adminMuted}>
-            {e.employeeId} · {groupLabel(e.group)} · {t("admin.employees.joinDate")}:{" "}
+            {e.employeeId} ·{" "}
+            <span className="inline-flex align-middle">
+              <AdminCategoryBadge code={(e.category as any)?.code ?? null} lang={lang as "ar" | "fr" | "en"} />
+            </span>{" "}
+            · {t("admin.employees.joinDate")}:{" "}
             {new Date(e.createdAt).toLocaleDateString()}
           </p>
           <p className={`text-sm ${adminMuted}`}>
@@ -184,16 +222,21 @@ export function EmployeeDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {e.attempts.map((a, i) => (
-                <tr key={i} className="border-t border-[#E2E8F0] dark:border-[#30363D]">
-                  <td className="p-3">
-                    {(a.quiz.course.title as Record<string, string>)?.[lang] ?? "—"}
-                  </td>
-                  <td className="p-3">{new Date(a.attemptedAt).toLocaleString()}</td>
-                  <td className="p-3 tabular-nums">{a.score}%</td>
+              {attemptRows.map((a, i) => (
+                <tr key={`${a.at}-${i}`} className="border-t border-[#E2E8F0] dark:border-[#30363D]">
+                  <td className="p-3">{(a.courseTitle as Record<string, string>)?.[lang] ?? "—"}</td>
+                  <td className="p-3">{new Date(a.at).toLocaleString()}</td>
+                  <td className="p-3 tabular-nums">{a.pct}%</td>
                   <td className="p-3">{a.passed ? t("common.pass") : t("common.fail")}</td>
                 </tr>
               ))}
+              {!attemptRows.length && (
+                <tr>
+                  <td colSpan={4} className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">
+                    {t("common.noData")}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

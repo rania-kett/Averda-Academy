@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { adminApi } from "@/api/api";
+import { BarChart3, CheckCircle2 } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -55,28 +57,50 @@ export function AnalyticsPage() {
     return <div className="h-96 animate-pulse rounded-xl bg-slate-200 dark:bg-[#161B22]" />;
   }
 
+  const hasHeatmapData = Boolean(heatmap?.users.length && heatmap.courses.length);
+
   return (
     <div className="space-y-10">
-      <h1 className="text-2xl font-bold">{t("admin.analytics.title")}</h1>
+      <div>
+        <h1 className="text-2xl font-bold">{t("admin.analytics.title")}</h1>
+        <p className={`mt-2 text-sm font-semibold ${adminMuted}`}>
+          نظرة عامة على تقدم الموظفين والدورات التدريبية
+        </p>
+      </div>
 
       <section>
         <h2 className="mb-4 font-semibold">{t("admin.analytics.avgByCourse")}</h2>
         <div className={`h-72 ${adminCardPadded}`}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={courseScores.map((c, i) => ({ name: `C${i + 1}`, score: c.avgScore }))}>
-              <XAxis dataKey="name" stroke={chartAxis} tick={{ fill: chartAxis }} />
-              <YAxis stroke={chartAxis} tick={{ fill: chartAxis }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: isDark ? "#161B22" : "#ffffff",
-                  border: isDark ? "1px solid #30363d" : "1px solid #e2e8f0",
-                  borderRadius: 8,
-                  color: isDark ? "#f1f5f9" : "#0f172a",
-                }}
-              />
-              <Bar dataKey="score" fill="#6366F1" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {courseScores.length ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={courseScores.map((c, i) => ({ name: `C${i + 1}`, score: c.avgScore }))}>
+                <XAxis dataKey="name" stroke={chartAxis} tick={{ fill: chartAxis }} />
+                <YAxis stroke={chartAxis} tick={{ fill: chartAxis }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: isDark ? "#161B22" : "#ffffff",
+                    border: isDark ? "1px solid #30363d" : "1px solid #e2e8f0",
+                    borderRadius: 8,
+                    color: isDark ? "#f1f5f9" : "#0f172a",
+                  }}
+                />
+                <Bar dataKey="score" fill="#6366F1" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-white/10 dark:text-slate-500">
+                <BarChart3 className="h-6 w-6" aria-hidden />
+              </div>
+              <p className="text-sm font-semibold text-[#6B7280] dark:text-slate-400">لا توجد بيانات اختبارات بعد</p>
+              <Link
+                to="/admin/courses"
+                className="rounded-xl bg-averda px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#163056]"
+              >
+                إنشاء اختبار
+              </Link>
+            </div>
+          )}
         </div>
       </section>
 
@@ -122,14 +146,26 @@ export function AnalyticsPage() {
                   <td className="p-3 tabular-nums">{p.wrongRate}%</td>
                 </tr>
               ))}
+              {!problems.length && (
+                <tr className="border-t border-[#E2E8F0] dark:border-[#30363D]">
+                  <td colSpan={3} className="p-8">
+                    <div className="flex flex-col items-center justify-center gap-3 text-center">
+                      <CheckCircle2 className="h-9 w-9 text-[#22c55e]" aria-hidden />
+                      <p className="text-sm font-extrabold text-[#15803d] dark:text-emerald-200">
+                        لم يتم رصد أسئلة إشكالية بعد
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </section>
 
-      <section>
-        <h2 className="mb-4 font-semibold">{t("admin.analytics.heatmap")}</h2>
-        {heatmap && (
+      {hasHeatmapData && heatmap && (
+        <section>
+          <h2 className="mb-4 font-semibold">{t("admin.analytics.heatmap")}</h2>
           <div className={`overflow-x-auto ${adminCardPadded}`}>
             <div className="flex gap-1 min-w-max">
               <div className="w-32 shrink-0" />
@@ -165,9 +201,19 @@ export function AnalyticsPage() {
                 })}
               </div>
             ))}
+            <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-[#E2E8F0] pt-3 text-xs font-semibold text-[#64748b] dark:border-[#30363D] dark:text-slate-400">
+              <span className="inline-flex items-center gap-2">
+                <span className="h-4 w-8 rounded bg-emerald-600" aria-hidden />
+                مكتمل
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="h-4 w-8 rounded bg-slate-200 dark:bg-stone-800" aria-hidden />
+                لم يبدأ
+              </span>
+            </div>
           </div>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   );
 }

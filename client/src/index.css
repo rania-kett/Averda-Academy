@@ -26,6 +26,9 @@
   --employee-progress-well: #f5f5f4;
   --employee-continue-bg: #f0fdf4;
 
+  /* Fixed header → scrollable content breathing room (employee + admin) */
+  --app-content-gap: 36px;
+
   /* Admin main — light */
   --admin-main-bg: #f8fafc;
   --admin-card: #ffffff;
@@ -67,15 +70,41 @@ html.dark {
   --admin-toast-bg: #161b22;
 }
 
+/* Scrollbars hidden visually; overflow stays scrollable (wheel, keyboard, touch). No overflow:hidden here. */
 html {
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
   background-color: var(--html-bg);
+  overflow-y: scroll;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar {
+  display: none;
 }
 
 body {
   min-height: 100vh;
   background-color: var(--html-bg);
+  overflow-y: scroll;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+body::-webkit-scrollbar {
+  display: none;
+}
+
+/* Firefox + legacy Edge; apply to all elements so nested scroll regions (e.g. employee main) also hide tracks. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Chrome, Safari, Edge (Chromium) — needs a selector; bare ::-webkit-scrollbar does not apply globally. */
+*::-webkit-scrollbar {
+  display: none;
 }
 
 :focus-visible {

@@ -1,10 +1,21 @@
 {
-  "app": { "name": "فليت ليرن", "tagline": "التدريب والسلامة" },
+  "app": { "name": "Averda Academy", "tagline": "التدريب والسلامة" },
+  "course": {
+    "pdfUnavailable": "لم يُرفع ملف PDF بعد. يُرجى التواصل مع المسؤول."
+  },
+  "training": {
+    "chips": {
+      "roleSkills": "مهارات الدور",
+      "equipment": "المعدات",
+      "safety": "السلامة"
+    }
+  },
   "common": {
     "loading": "جاري التحميل…",
     "error": "حدث خطأ",
     "retry": "إعادة المحاولة",
     "save": "حفظ",
+    "saving": "جاري الحفظ…",
     "cancel": "إلغاء",
     "delete": "حذف",
     "edit": "تعديل",
@@ -31,8 +42,13 @@
     "settings": "الإعدادات",
     "notifications": "الإشعارات",
     "language": "اللغة",
+    "langEnglish": "English",
+    "langFrench": "Français",
+    "langArabic": "العربية",
     "noData": "لا توجد بيانات بعد",
     "sendReminder": "إرسال تذكير",
+    "reminderSent": "تم إرسال التذكير",
+    "explanation": "الشرح",
     "add": "إضافة",
     "preview": "معاينة PDF",
     "toggleActive": "تفعيل/إيقاف",
@@ -40,27 +56,38 @@
     "generating": "جاري التوليد…",
     "quizReady": "جاهز (10 أسئلة)",
     "noQuiz": "لا يوجد اختبار",
-    "pdfError": "تعذر تحميل ملف PDF. يرجى الاتصال بالمسؤول.",
+    "pdfError": "تعذر تحميل الملف — يرجى التحقق من المسار",
     "saved": "تم الحفظ بنجاح",
     "deleted": "تم الحذف",
     "added": "تمت الإضافة بنجاح",
     "quizGenOk": "تم إنشاء الاختبار بنجاح",
     "progressSaved": "تم حفظ التقدم",
     "featureComingSoon": "الميزة قريباً",
-    "apiKeyRequired": "مطلوب مفتاح Anthropic. عيّن ANTHROPIC_API_KEY في الخادم.",
+    "apiKeyRequired": "مطلوب مفتاح Gemini. عيّن GEMINI_API_KEY في الخادم.",
     "openMenu": "فتح القائمة",
     "expandMenu": "توسيع الشريط الجانبي",
     "collapseMenu": "طي الشريط الجانبي",
     "themeLight": "التبديل إلى الوضع الفاتح",
-    "themeDark": "التبديل إلى الوضع الداكن"
+    "themeDark": "التبديل إلى الوضع الداكن",
+    "pagination": {
+      "prev": "السابق",
+      "next": "التالي",
+      "pageOf": "صفحة {{current}} / {{total}}"
+    }
   },
   "login": {
+    "portalBadge": "بوابة الموظف",
+    "signInCta": "دخول",
+    "employeeIdBilingual": "رقم الموظف / Employee ID",
     "title": "تسجيل دخول الموظف",
     "employeeId": "رقم الموظف",
-    "employeeIdPh": "مثال AVR-DRV-001",
+    "employeeIdPh": "مثال AV000001",
+    "employeeIdDigitsPh": "مثال 000001",
+    "employeeIdDigitsAria": "أدخل 6 أرقام لرقم الموظف",
     "pin": "الرمز السري",
     "submit": "دخول",
     "error": "رقم الموظف أو الرمز غير صحيح",
+    "networkError": "تعذر الاتصال بالخادم. شغّل التطبيق من المجلد الرئيسي: npm run dev",
     "shake": "تحقق من بياناتك"
   },
   "adminLogin": {
@@ -68,12 +95,16 @@
     "email": "البريد الإلكتروني",
     "password": "كلمة المرور",
     "submit": "دخول",
-    "error": "البريد أو كلمة المرور غير صحيحة"
+    "error": "البريد أو كلمة المرور غير صحيحة",
+    "networkError": "تعذر الاتصال بالخادم. شغّل التطبيق من المجلد الرئيسي: npm run dev"
   },
   "nav": {
     "employeeBar": "التنقل الرئيسي",
     "home": "الرئيسية",
     "courses": "الدورات",
+    "myTraining": "تدريبي",
+    "challenges": "التحديات",
+    "profile": "ملفي",
     "dashboard": "لوحة التحكم",
     "employees": "الموظفون",
     "analytics": "التحليلات",
@@ -88,6 +119,160 @@
     "EN": "الإنجليزية"
   },
   "employee": {
+    "challenges": {
+      "title": "التحديات",
+      "subtitle": "أكمل التحديات لتحصل على شارات ومكافآت.",
+      "empty": "لا توجد تحديات حالياً.",
+      "groups": {
+        "onboarding": "🧩 الاندماج",
+        "operational": "🦺 العمليات وEPI",
+        "learning": "📚 التعلّم",
+        "performance": "⚡ الأداء",
+        "final": "🛡️ النهائي"
+      },
+      "labels": { "tasks": "المهام", "impact": "التأثير", "badges": "الشارات" },
+      "status": { "completed": "✓ مكتمل", "inProgress": "قيد التنفيذ" }
+    },
+    "homeDash": {
+      "formations": { "title": "الدورات", "pill": "عرض", "hint": "المتبقي: {{n}}" },
+      "tasks": { "title": "المهام", "pill": "للإكمال", "hint": "اضغط لعرض التفاصيل" },
+      "continue": { "title": "متابعة", "hint": "تابع من حيث توقفت" },
+      "badges": {
+        "title": "الشارات",
+        "pill": "المستوى {{level}}",
+        "value": "{{n}} شارة",
+        "hint": "واصل لتفتح المرحلة التالية"
+      }
+    },
+    "profileDash": {
+      "formations": { "title": "الدورات المكتملة" },
+      "quizAvg": { "title": "متوسط نتائج الاختبارات" },
+      "time": { "title": "وقت التعلّم", "value": "{{minutes}} د", "hint": "إجمالي الوقت المتراكم" },
+      "epi": {
+        "title": "معداتي",
+        "subtitle": "{{n}} معدات غير مُعتمدة",
+        "pillOk": "مُعتمد",
+        "pillWarn": "تحقق",
+        "empty": "لا توجد معدات",
+        "alert": "{{n}} معدات EPI غير مُعتمدة — تحقق قبل مهمتك القادمة"
+      },
+      "levelBadges": { "title": "المستوى والشارات", "level": "المستوى {{level}} — {{xp}} XP" }
+    },
+    "epi": {
+      "title": "معدات EPI",
+      "subtitle": "تتبّع معداتك واطلب التجديد بسهولة",
+      "badgeNew": "جديد",
+      "manageCta": "إدارة معداتي",
+      "receipt": { "title": "استلام المعدات", "progress": "{{received}} من {{total}} معدات مستلمة" },
+      "kpis": {
+        "received": "مستلم ({{n}})",
+        "pending": "في الانتظار ({{n}})",
+        "needs": "يتطلب إجراء ({{n}})"
+      },
+      "sizes": {
+        "title": "مقاساتي",
+        "hint": "أدخل مقاساتك حتى نتمكن من تزويدك بالمعدات المناسبة.",
+        "cta": "تحديد مقاساتي",
+        "edit": "تعديل المقاسات",
+        "modalTitle": "اختر مقاساتك",
+        "save": "حفظ المقاسات",
+        "shirt": "قميص: {{v}}",
+        "shoe": "حذاء: {{v}}",
+        "gloves": "قفازات: {{v}}",
+        "vest": "سترة: {{v}}",
+        "pants": "بنطلون: {{v}}",
+        "labels": {
+          "shirt": "قميص",
+          "shoe": "حذاء",
+          "gloves": "قفازات",
+          "vest": "سترة واقية",
+          "pantsOptional": "بنطلون (اختياري)"
+        }
+      },
+      "items": {
+        "title": "معداتي",
+        "assigned": "تم التعيين",
+        "notAssigned": "غير معيّن بعد",
+        "codes": {
+          "veste_hv": "سترة عاكسة عالية الرؤية",
+          "gilet_hv": "صديرية عاكسة",
+          "veste_chef": "سترة (زي رئيس الفريق)",
+          "pull_hiver": "بلوفر شتوي",
+          "tee_shirt": "تيشيرت",
+          "pantalon": "بنطلون العمل",
+          "combinaison": "بدلة عمل كاملة",
+          "chaussures": "حذاء السلامة",
+          "gants": "قفازات العمل",
+          "gants_renforces": "قفازات مقواة",
+          "casquette": "قبعة",
+          "casquette_cache_nuque": "قبعة واقية للرقبة",
+          "bonnet": "قبعة شتوية",
+          "masque": "قناع ضد الغبار",
+          "lunettes": "نظارات الحماية",
+          "protection_auditive": "واقي الأذن",
+          "impermeable": "معطف المطر",
+          "chemise": "قميص"
+        }
+      },
+      "status": {
+        "received": "مستلم",
+        "pending": "في الانتظار",
+        "issued": "في الانتظار",
+        "needs": "يتطلب إجراء",
+        "needsRenewal": "يحتاج تجديد",
+        "needsReplacement": "يحتاج استبدال",
+        "notReceived": "لم يُستلم بعد",
+        "notIssued": "لم يُسلم بعد",
+        "expired": "منتهٍ",
+        "replaced": "مستبدل"
+      },
+      "renew": { "title": "طلب تجديد", "hint": "لديك معدات تحتاج إلى تجديد. افتح أي عنصر ثم اضغط «طلب تجديد»." },
+      "itemSheet": {
+        "statusTitle": "حالة العنصر",
+        "scale": { "assigned": "تم التعيين", "active": "نشط", "worn": "مستهلك", "replace": "استبدال" },
+        "confirmReception": "✅ تأكيد الاستلام",
+        "requestReplacement": "طلب تجديد",
+        "notRecorded": "لم يتم تسجيل هذا العنصر بعد."
+      },
+      "reception": {
+        "title": "تأكيد الاستلام",
+        "notifySupervisor": "إعلام المشرف بالاستلام",
+        "fitOk": "المقاس مناسب",
+        "signatureOptional": "التوقيع (اختياري)",
+        "signaturePlaceholder": "اكتب اسمك",
+        "noteOptional": "ملاحظة (اختياري)",
+        "notePlaceholder": "مثال: المقاس يحتاج تبديل…",
+        "confirm": "تأكيد"
+      },
+      "replacement": {
+        "title": "طلب تجديد",
+        "reasonTitle": "سبب الطلب",
+        "noteTitle": "ملاحظة إضافية (اختياري)",
+        "notePlaceholder": "اكتب ملاحظة قصيرة",
+        "send": "إرسال الطلب",
+        "sentTitle": "تم إرسال طلبك بنجاح",
+        "sentHint": "سيتواصل معك المسؤول قريباً.",
+        "reasons": {
+          "damaged": "تلف",
+          "lost": "ضياع",
+          "wrongSize": "مقاس خاطئ",
+          "expired": "انتهاء الصلاحية",
+          "other": "أخرى"
+        }
+      },
+      "toasts": {
+        "sizesSaved": "تم حفظ المقاسات.",
+        "receptionConfirmed": "تم تأكيد الاستلام.",
+        "replacementSent": "تم إرسال الطلب."
+      },
+      "errors": {
+        "dbMigrationRequired": "الميزة تحتاج تحديث قاعدة البيانات أولاً.",
+        "loadFailed": "تعذر تحميل بيانات معدات الحماية.",
+        "saveSizesFailed": "تعذر حفظ المقاسات. حاول مرة أخرى.",
+        "confirmReceptionFailed": "تعذر تأكيد الاستلام.",
+        "replacementFailed": "تعذر إرسال الطلب."
+      }
+    },
     "greeting": "مرحباً {{name}}",
     "greetingAr": "أهلاً {{name}}",
     "overallProgress": "التقدم الإجمالي",
@@ -96,6 +281,25 @@
     "continue": "متابعة التعلم",
     "noContinue": "اختر دورة للبدء",
     "badges": "الشارات",
+    "badgesPage": {
+      "title": "شاراتي",
+      "locked": "مقفل",
+      "unlocked": "تم الفتح"
+    },
+    "badgeName": {
+      "safety_starter": "مبتدئ السلامة",
+      "quiz_master": "بطل الاختبارات",
+      "consistent_learner": "متعلم منتظم",
+      "safety_compliant": "ملتزم بالسلامة",
+      "perfect_fit": "ملاءمة مثالية",
+      "fully_equipped": "مجهز بالكامل",
+      "detail_oriented": "مهتم بالتفاصيل",
+      "quick_responder": "سريع الاستجابة",
+      "challenge_trifecta": "محفز التحديات",
+      "active_user": "مستخدم نشط",
+      "top_performer": "أفضل أداء",
+      "safety_champion": "بطل السلامة"
+    },
     "locked": "مقفل",
     "stats": { "streak": "أيام متتالية", "avgScore": "متوسط الاختبارات", "certs": "الشهادات" },
     "seeAll": "عرض الكل",
@@ -113,13 +317,73 @@
       "markComplete": "تعليم كمكتمل",
       "takeQuiz": "بدء الاختبار",
       "pageOf": "صفحة {{current}} / {{total}}",
+      "pdfPageOf": "صفحة {{current}} من {{total}}",
+      "pdfLoadError": "تعذّر تحميل الملف، يرجى المحاولة مجدداً",
+      "pdfRetry": "إعادة المحاولة",
+      "pdfAlternativeViewer": "عرض بديل",
+      "pdfBackToBuiltIn": "العارض المدمج",
+      "openPdfNewTab": "فتح ملف PDF",
+      "pdfViewGoogle": "عرض Google",
+      "pdfViewDirect": "عرض مباشر",
+      "pdfDownloadMode": "وضع الفتح فقط",
+      "pdfOpenExternalShort": "فتح خارجي ↗",
+      "pdfInlineUnavailable": "تعذّر عرض الملف مباشرة في المتصفّح. يمكنك فتحه في نافذة جديدة.",
+      "pdfBlobLoading": "جارٍ تحميل الملف…",
+      "pdfIframeTitle": "مستند PDF",
       "prev": "السابق",
       "next": "التالي",
-      "quizSoonLong": "سيُتاح الاختبار عندما يُنشئه المسؤول."
+      "slideXofY": "الشريحة {{current}} من {{total}}",
+      "expand": "تكبير",
+      "close": "إغلاق",
+      "quizSoonLong": "سيُتاح الاختبار عندما يُنشئه المسؤول.",
+      "startLessonQuiz": "ابدأ الاختبار 📝",
+      "latestLessonQuizResult": "آخر نتيجة: {{pct}}% ({{score}}/{{total}})",
+      "startTrafficQuiz": "ابدأ الاختبار 📝",
+      "trafficQuizTitle": "اختبار: احترام قانون السير"
+    },
+    "assessmentBanner": {
+      "title": "اختبار تحديد المستوى",
+      "subtitle": "أجب على 10 أسئلة لنخصص دوراتك لك",
+      "startCta": "ابدأ الاختبار",
+      "requiredNote": "مطلوب قبل الوصول إلى الدورات",
+      "failTitle": "لم تجتز الاختبار، أعد المحاولة",
+      "failSubtitle": "تحتاج إلى 70٪ على الأقل لفتح الدورات.",
+      "retryCta": "إعادة الاختبار"
+    },
+    "assessmentModal": {
+      "saveFailed": "تعذر الحفظ. حاول مرة أخرى.",
+      "quiz": {
+        "progress": "السؤال {{current}} من {{total}}",
+        "streak": "{{n}} إجابات صحيحة متتالية!",
+        "next": "التالي"
+      },
+      "results": {
+        "badges": { "excellent": "ممتاز!", "good": "جيد", "needsReview": "تحتاج مراجعة" },
+        "msgPass": "أحسنت! لقد أثبتّ معرفتك بأساسيات السلامة. دوراتك جاهزة!",
+        "msgFail": "لا بأس! دورة HSSEQ الأساسية ستساعدك على تعزيز معرفتك.",
+        "reviewTitle": "مراجعة الإجابات",
+        "yourAnswer": "إجابتك:",
+        "correctAnswer": "الصحيح:",
+        "noAnswer": "—",
+        "cta": "ابدأ التعلم الآن"
+      }
     },
     "profile": {
+      "title": "الملف الشخصي",
       "menu": "الحساب",
-      "langLabel": "تفضيل اللغة"
+      "langLabel": "تفضيل اللغة",
+      "employeeId": "رقم الموظف",
+      "group": "المجموعة",
+      "language": "اللغة",
+      "statsTitle": "إحصاءاتك",
+      "coursesCompleted": "الدورات المكتملة",
+      "avgScore": "متوسط نتائج الاختبارات",
+      "timeSpent": "وقت التعلّم",
+      "badgesTitle": "الشارات المكتسبة",
+      "unlockedOn": "تاريخ الحصول",
+      "noBadges": "لا توجد شارات بعد",
+      "saveLang": "حفظ اللغة",
+      "logout": "تسجيل الخروج"
     },
     "quiz": {
       "of": "سؤال {{n}} من 10",
@@ -131,7 +395,125 @@
       "failedMsg": "راجع المادة ثم أعد المحاولة.",
       "tryAgain": "إعادة المحاولة",
       "backCourses": "العودة للدورات",
-      "review": "شرح"
+      "review": "شرح",
+      "mistakes": {
+        "back": "رجوع",
+        "title": "مراجعة الأخطاء",
+        "empty": "لا توجد أخطاء.",
+        "yourAnswer": "إجابتك: ",
+        "correctAnswer": "الإجابة الصحيحة: ",
+        "explanation": "الشرح: ",
+        "retryMistakesOnly": "إعادة الأخطاء فقط",
+        "retryFull": "إعادة الاختبار"
+      }
+    },
+    "layout": {
+      "settingsTitle": "الإعدادات",
+      "appearance": "المظهر",
+      "darkMode": "الوضع الداكن",
+      "aboutAverda": "حول أفيردا",
+      "aboutAverdaCta": "حول أفيردا",
+      "notificationsEmpty": "لا توجد إشعارات بعد",
+      "markAllRead": "تعليم الكل كمقروء",
+      "courseAudioSoon": "صوت الدورة — قريباً",
+      "emergencyTitle": "هل تحتاج مساعدة عاجلة؟",
+      "emergencySubtitle": "سيتم الاتصال بمسؤولك مباشرة",
+      "emergencyFab": "طوارئ",
+      "emergencyCancel": "إلغاء",
+      "emergencyCall": "اتصل الآن"
+    },
+    "home": {
+      "welcome": "مرحباً {{name}}!",
+      "intro": "أنا Averda Academy، رفيقك في التدريب في أفيردا.",
+      "motivate0": "لنبدأ — رحلتك تبدأ اليوم 🚀",
+      "motivate40": "بداية جيدة — واصل، أنت قادر 💪",
+      "motivate79": "تقدّم رائع — أنت أكثر من النصف 🔥",
+      "motivate99": "قريب جدًا — دفعة أخيرة ⚡",
+      "motivate100": "تم التدريب — عمل ممتاز 🏆",
+      "reminderTitle": "💡 تذكير اليوم",
+      "reminderShuffleAria": "تبديل التذكير",
+      "reminderShuffleTitle": "تذكير آخر",
+      "statSafety": "نقاط السلامة",
+      "statCourses": "الدورات",
+      "statTasks": "المهام",
+      "trainingProgress": "تقدم التدريب",
+      "lessonsCompleted": "{{done}} من {{total}} درس مكتمل",
+      "myCourses": "دوراتي",
+      "statusCompleted": "مكتمل",
+      "statusInProgress": "قيد التقدم",
+      "statusNotStarted": "لم يبدأ",
+      "ctaReview": "مراجعة",
+      "ctaContinue": "تابع ▷",
+      "ctaStart": "ابدأ",
+      "hsseqRequiredPill": "مطلوب",
+      "lockedCta": "أكمل الاختبار أولاً 🔒",
+      "lockedBasicsCta": "أكمل «توجيهات أساسية» أولاً 🔒",
+      "myBadges": "شاراتي",
+      "seeAllBadges": "عرض الكل",
+      "noBadgesYet": "لا توجد شارات بعد — ابدأ أول دورة!"
+    },
+    "basicsGate": {
+      "title": "افتح الدورات",
+      "subtitle": "نتيجتك في اختبار التقييم أقل من 70%. أكمل درس «توجيهات أساسية» واجتز الاختبار لفتح باقي الدورات.",
+      "cta": "فتح توجيهات أساسية ←",
+      "toast": "يرجى إكمال «توجيهات أساسية» أولاً."
+    },
+    "roleLabels": {
+      "chauffeur": "سائق",
+      "balayeur": "كنّاس",
+      "chargeur": "شاحن",
+      "parc": "عامل الحظيرة",
+      "maintenance": "صيانة",
+      "manager": "مشرف",
+      "unknown": "الفريق"
+    },
+    "coursesExt": {
+      "emptyDesc": "سيقوم المشرف بإضافة الدورات الخاصة بك قريباً.",
+      "filteredEmptyTitle": "لا توجد دورات في هذا التبويب",
+      "filteredEmptyDesc": "جرّب تبويباً آخر أو ابدأ دورة.",
+      "filteredCta": "ابدأ الآن",
+      "lessonQuizLatest": "آخر اختبار: {{pct}}٪",
+      "emptyCompletedTitle": "لا توجد دورات مكتملة بعد",
+      "emptyInProgressTitle": "لا توجد دورات قيد التقدم"
+    },
+    "dashboard": {
+      "formations": {
+        "title": "📚 الدورات",
+        "value": "{{done}} من {{total}} مكتملة",
+        "valueEmpty": "0 دورة",
+        "helper": "واصل التقدم — أنت تقوم بعمل ممتاز.",
+        "helperZero": "ابدأ دورة لبدء رحلتك التدريبية."
+      },
+      "tasks": {
+        "title": "✅ مهام قيد الانتظار",
+        "value": "{{n}} مهام متبقية",
+        "valueZero": "لا توجد مهام",
+        "helper": "أكمل الدورات لتقليل عدد المهام.",
+        "helperZero": "ممتاز — كل شيء مكتمل."
+      },
+      "time": {
+        "title": "⏱️ وقت التعلّم",
+        "value": "{{minutes}} دقيقة",
+        "valueZero": "0 دقيقة",
+        "helper": "كل دقيقة تقرّبك من الهدف.",
+        "helperZero": "ابدأ دورة لتسجيل وقت التعلّم."
+      },
+      "safety": {
+        "title": "🛡️ نقاط السلامة",
+        "helper": "استمر على الممارسات الجيدة.",
+        "helperZero": "أكمل دورات لتحسين نقاط السلامة."
+      },
+      "quizAvg": {
+        "title": "📊 متوسط نتائج الاختبارات",
+        "helper": "نتائجك تتحسن مع الممارسة.",
+        "helperZero": "لا يوجد اختبار مكتمل حتى الآن."
+      },
+      "level": {
+        "title": "🏅 المستوى",
+        "value": "المستوى {{level}} — {{xp}} XP",
+        "helper": "واصل لتحصل على نقاط XP أكثر.",
+        "helperZero": "ابدأ دورة لتحصل على نقاط XP."
+      }
     }
   },
   "admin": {
@@ -181,6 +563,8 @@
       "resetConfirm": "سيُحذف كل تقدم هذا الموظف.",
       "joinDate": "تاريخ الانضمام",
       "langPref": "اللغة",
+      "courseQuiz": "اختبار الدورة",
+      "lessonQuiz": "اختبار الدرس",
       "quizHistory": "محاولات الاختبار",
       "progressSec": "تقدم الدورات"
     },
@@ -195,13 +579,17 @@
     "courses": {
       "title": "إدارة الدورات",
       "add": "إضافة دورة",
+      "filterByCategory": "تصفية حسب الفئة",
       "empty": "لا توجد دورات بعد",
       "genQuiz": "إنشاء اختبار",
       "pdfStatus": "PDF",
+      "noPdf": "لا يوجد PDF",
       "quizStatus": "الاختبار",
       "completion": "نسبة الإكمال",
       "updated": "آخر تحديث",
       "formTitle": "دورة جديدة",
+      "active": "نشط (مرئي للموظفين)",
+      "titleRequired": "يرجى إدخال عنوان بلغة واحدة على الأقل.",
       "titleAr": "العنوان (عربي)",
       "titleFr": "العنوان (فرنسي)",
       "titleEn": "العنوان (إنجليزي)",
@@ -209,12 +597,17 @@
       "descFr": "الوصف (فرنسي)",
       "descEn": "الوصف (إنجليزي)",
       "target": "الفئة المستهدفة",
+      "allCategories": "جميع الفئات",
+      "allCategoriesHint": "اختر هذا السطر وحده لتعيين الدورة للجميع، أو اختر فئات محددة (Ctrl/Cmd + نقر).",
+      "pickCategory": "يرجى اختيار فئة واحدة على الأقل.",
       "targetBoth": "الكل",
       "icon": "أيقونة",
       "color": "لون البطاقة",
       "dropPdf": "أسقط ملف PDF هنا أو انقر",
       "genError": "فشل إنشاء الاختبار",
-      "edit": "تعديل الدورة"
+      "quizNotGenerated": "لم يتم إنشاء الاختبار",
+      "edit": "تعديل الدورة",
+      "aiFillUnavailable": "تعذّر الملء التلقائي من ملف PDF (الذكاء الاصطناعي). تحقق من الاتصال ومفتاح الواجهة البرمجية، أو أدخل الحقول يدوياً."
     },
     "analytics": {
       "title": "التحليلات",
@@ -228,6 +621,65 @@
     "settings": {
       "title": "الإعدادات",
       "body": "إعدادات الشركة والتكامل ستظهر هنا."
+    },
+    "quizResults": {
+      "sectionTitle": "نتائج الاختبارات",
+      "avgAssessment": "متوسط نتائج التقييم (HSSEQ)",
+      "assessmentPassRate": "نسبة النجاح في التقييم",
+      "avgLessonQuizzes": "متوسط اختبارات الدروس",
+      "totalLessonAttempts": "إجمالي محاولات اختبار الدروس",
+      "assessmentTableTitle": "نتائج اختبار التقييم",
+      "lessonAttemptsTitle": "محاولات اختبارات الدروس",
+      "colEmployee": "الموظف",
+      "colGroup": "المجموعة",
+      "colPercent": "النسبة",
+      "colStatus": "الحالة",
+      "colDate": "التاريخ",
+      "colCourse": "الدورة",
+      "colAttempt": "المحاولة",
+      "colScore": "النتيجة",
+      "colBest": "أفضل نتيجة",
+      "pass": "ناجح",
+      "fail": "راسب"
+    },
+    "epi": {
+      "title": "تتبّع معدات الحماية الشخصية (EPI)",
+      "subtitle": "ملخص سريع + جدول لكل موظف للحفاظ على التتبع",
+      "kpiPending": "طلبات تجديد معلّقة:",
+      "kpiMissingSizes": "مقاسات ناقصة:",
+      "colEmployee": "الموظف",
+      "colSizes": "المقاسات",
+      "colStatus": "الحالة",
+      "colRenewals": "طلبات تجديد",
+      "colUpdated": "آخر تحديث",
+      "sizeShirt": "قميص",
+      "sizePants": "بنطال",
+      "sizeShoe": "حذاء",
+      "sizeGloves": "قفازات",
+      "sizeVest": "سترة",
+      "statusNeedsFollowUp": "يحتاج متابعة",
+      "statusGood": "جيد",
+      "itemsLine": "عناصر: {{total}} • مستلمة: {{received}} • منتهية: {{expired}}",
+      "empty": "لا توجد بيانات EPI بعد",
+      "emptyActivity": "لا يوجد نشاط حتى الآن",
+      "emptyAtRisk": "لا يوجد موظفون بحاجة لمتابعة",
+      "emptyTop": "لا توجد بيانات بعد"
+    },
+    "epiManage": {
+      "open": "إدارة EPI",
+      "title": "إدارة معدات EPI",
+      "categoryDefaults": "إعدادات حسب الفئة",
+      "issueSection": "إرسال/تعيين المعدات",
+      "useDefaults": "استخدام الإعدادات",
+      "issueHint": "اختر موظفاً من الجدول لإرسال المعدات.",
+      "issueBtn": "إرسال",
+      "issueConfirm": "إرسال المعدات المحددة",
+      "selectAtLeastOne": "اختر على الأقل عنصراً واحداً",
+      "issued": "تم إرسال المعدات",
+      "saved": "تم حفظ الإعدادات",
+      "loadFailed": "تعذر تحميل إدارة EPI",
+      "saveFailed": "تعذر حفظ الإعدادات",
+      "issueFailed": "تعذر إرسال المعدات"
     }
   },
   "badge": { "new": "شارة جديدة!" },

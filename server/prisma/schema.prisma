@@ -15,16 +15,62 @@ model User {
   email         String?       @unique
   passwordHash  String?
   role          Role          @default(EMPLOYEE)
-  group         UserGroup     @default(DRIVER)
+  categoryId    String?
   avatarColor   String
   language      Lang          @default(AR)
   isActive      Boolean       @default(true)
   createdAt     DateTime      @default(now())
 
+  /** One-time HSSEQ baseline quiz completed */
+  assessmentCompleted   Boolean   @default(false)
+  /** Score 0–100 after assessment */
+  assessmentScore       Int?
+  assessmentTakenAt     DateTime?
+  /** If true, HSSEQ foundation course is required (pinned); false = exempt (score ≥ 70) */
+  hsseqCourseRequired   Boolean   @default(true)
+
+  category      Category?     @relation(fields: [categoryId], references: [id])
   progress      LessonProgress[]
   attempts      QuizAttempt[]
+  lessonQuizAttempts LessonQuizAttempt[]
   badges        UserBadge[]
   certificates  Certificate[]
+  notifications Notification[]
+
+  epiProfile    EpiProfile?
+  epiIssuances  EpiIssuance[]
+  epiReplacementRequests EpiReplacementRequest[]
+  epiRenewalRequests     EpiRenewalRequest[]
+  epiComplianceProofs    EpiComplianceProof[]
+  epiFeedbacks           EpiFeedback[]
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  /** Stable identifier for code/logic (e.g. "chauffeur") */
+  code      String   @unique
+  /** Trilingual name: { fr: "...", en: "...", ar: "..." } */
+  name      Json
+  /** Employee ID prefix (e.g. "AVR-DRV") */
+  idPrefix  String
+  createdAt DateTime @default(now())
+
+  users     User[]
+  courses   CourseCategory[]
+  epiDefaultItems EpiCategoryDefaultItem[]
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     Json     // { ar: "", fr: "", en: "" }
+  message   Json     // { ar: "", fr: "", en: "" }
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead, createdAt])
 }
 
 model Course {
@@ -36,15 +82,29 @@ model Course {
   coverColor    String
   pdfUrl        String
   pdfPageCount  Int           @default(0)
-  targetGroup   UserGroup[]
   isActive      Boolean       @default(true)
   order         Int           @default(0)
   extractedText String?       @db.Text
+  /** HSSEQ foundational course — gated by baseline assessment */
+  isHsseqFoundation Boolean   @default(false)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   quiz          Quiz?
   progress      LessonProgress[]
+  lessonQuizAttempts LessonQuizAttempt[]
+  categories    CourseCategory[]
+}
+
+model CourseCategory {
+  courseId    String
+  categoryId  String
+
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, categoryId])
+  @@index([categoryId])
 }
 
 model LessonProgress {
@@ -81,12 +141,39 @@ model QuizAttempt {
   quizId      String
   score       Int
   answers     Json
+  /** 1-based attempt counter per user+quiz */
+  attemptNumber Int     @default(1)
+  /** Question ids answered incorrectly in this attempt */
+  wrongQuestionIds Json?
+  /** Question ids included in this attempt (10 out of 20) */
+  questionIds  Json?
   passed      Boolean
   timeSpent   Int
   attemptedAt DateTime  @default(now())
 
   user  User  @relation(fields: [userId], references: [id])
   quiz  Quiz  @relation(fields: [quizId], references: [id])
+
+  @@index([userId, quizId, attemptedAt])
+}
+
+/** Repeatable lesson quiz (e.g. road safety) — separate from AI course Quiz */
+model LessonQuizAttempt {
+  id            String   @id @default(cuid())
+  userId        String
+  courseId      String
+  score         Int
+  total         Int
+  percentage    Int
+  answers       Json
+  attemptNumber Int
+  takenAt       DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([userId, courseId])
+  @@index([courseId, takenAt])
 }
 
 model Badge {
@@ -120,14 +207,169 @@ model Certificate {
   user  User  @relation(fields: [userId], references: [id])
 }
 
+/** EPI (Équipements de Protection Individuelle) — employee-facing module. */
+model EpiProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+
+  // Sizes / info (kept flexible for now; extended as needed).
+  shirtSize String?
+  shoeSize  String?
+  gloveSize String?
+  vestSize  String?
+  pantsSize String?
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EpiIssuance {
+  id        String   @id @default(cuid())
+  userId    String
+  itemCode  String
+  size      String?
+  status    String   @default("issued") // issued | received | replaced | expired | pending_renewal
+  issuedAt  DateTime @default(now())
+  nextReplacementAt DateTime?
+  /** Optional photo proof of reception (stored under /uploads/epi-proofs). */
+  photoProofPath String?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item      EpiItemCatalog @relation(fields: [itemCode], references: [code], onDelete: Restrict)
+  receptions EpiReceptionConfirmation[]
+  replacementRequests EpiReplacementRequest[]
+
+  @@index([userId, status])
+  @@index([itemCode])
+}
+
+model EpiReceptionConfirmation {
+  id          String   @id @default(cuid())
+  issuanceId  String
+  confirmedAt DateTime @default(now())
+  signatureName String?
+  notes       String?
+
+  issuance    EpiIssuance @relation(fields: [issuanceId], references: [id], onDelete: Cascade)
+
+  @@index([issuanceId, confirmedAt])
+}
+
+model EpiReplacementRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  issuanceId  String?
+  itemCode    String
+  requestedSize String?
+  reason      String
+  status      String   @default("pending") // pending | approved | rejected | fulfilled
+  createdAt   DateTime @default(now())
+  processedAt DateTime?
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issuance    EpiIssuance? @relation(fields: [issuanceId], references: [id], onDelete: SetNull)
+  item        EpiItemCatalog @relation(fields: [itemCode], references: [code], onDelete: Restrict)
+
+  @@index([userId, status, createdAt])
+  @@index([itemCode, status, createdAt])
+}
+
+/** Employee renewal requests (طلب تجديد) — admin approval workflow. */
+model EpiRenewalRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  itemType    String
+  itemLabel   String?
+  reason      String
+  note        String?
+  status      String   @default("pending") // pending | approved | rejected
+  createdAt   DateTime @default(now())
+  processedAt DateTime?
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@index([status, createdAt])
+}
+
+/** EPI equipment catalog (canonical list + default replacement cadence). */
+model EpiItemCatalog {
+  /** Stable string code, used by issuances/requests (e.g. "helmet"). */
+  code      String @id
+  labelAr   String
+  labelFr   String
+  labelEn   String
+  emoji     String?
+  /** If set, admin issuance computes nextReplacementAt = issuedAt + defaultLifetimeDays. */
+  defaultLifetimeDays Int?
+  sortOrder Int @default(0)
+  active    Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  issuances EpiIssuance[]
+  replacementRequests EpiReplacementRequest[]
+  categoryDefaults EpiCategoryDefaultItem[]
+
+  @@index([active, sortOrder])
+}
+
+/** Default EPI equipment per employee category. */
+model EpiCategoryDefaultItem {
+  categoryId String
+  itemCode   String
+  required   Boolean @default(true)
+  /** Optional per-category override (e.g. category-specific lifetime). */
+  lifetimeDaysOverride Int?
+  sortOrder  Int @default(0)
+  createdAt  DateTime @default(now())
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  item     EpiItemCatalog @relation(fields: [itemCode], references: [code], onDelete: Cascade)
+
+  @@id([categoryId, itemCode])
+  @@index([categoryId, sortOrder])
+  @@index([itemCode])
+}
+
+model EpiComplianceProof {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // photo | attestation | other
+  fileUrl   String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model EpiFeedback {
+  id        String   @id @default(cuid())
+  userId    String
+  rating    Int?
+  message   String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+/** Encrypted integration API keys (Anthropic, ElevenLabs) — managed from admin settings UI */
+model AppSettingKey {
+  key               String   @id
+  valueEncrypted    String
+  updatedAt         DateTime @updatedAt
+  updatedByUserId   String?
+}
+
 enum Role {
   ADMIN
   EMPLOYEE
-}
-
-enum UserGroup {
-  DRIVER
-  WORKER
 }
 
 enum Lang {

@@ -1,113 +1,355 @@
-# FleetLearn — Employee Onboarding & Training Platform
+<p align="center">
+  <img src="client/public/averda_logo.png" alt="Averda Academy" width="220" />
+</p>
 
-Production-oriented full-stack app for a transport/logistics company (Morocco): trilingual UI (Arabic default, French, English), RTL for Arabic, admin SaaS dashboard, and a mobile-first employee portal with PDF courses, AI-generated quizzes (Claude), badges, and certificates.
+<h1 align="center">Averda Academy</h1>
+<p align="center">
+  <strong>Plateforme de formation, d’onboarding et de sécurité professionnelle (EPI)</strong><br/>
+  منصة التدريب والسلامة المهنية — Averda Morocco
+</p>
 
-## Features
+<p align="center">
+  <a href="https://github.com/rania-kett/Averda-Academy">Dépôt GitHub</a>
+  ·
+  React + TypeScript · Node.js · PostgreSQL · Prisma
+</p>
 
-- **Authentication**: Employee ID + 4-digit PIN; admin email + password; JWT access (15 min) + refresh (7 days).
-- **Courses**: Group targeting (driver/worker/both), PDF storage, reading progress, completion tracking.
-- **Quiz pipeline**: Image-based Arabic PDFs → `pdf2pic` (ImageMagick) page images → **Claude Vision** extracts text → **Claude Sonnet** generates 10 MCQs in AR/FR/EN → stored in PostgreSQL. Fallback: `pdfjs-dist` + `@napi-rs/canvas` if `pdf2pic` fails.
-- **Gamification**: Badges with database-backed rules (first lesson, perfect score, safety expert, fleet master, etc.).
-- **Certificates**: PDFKit landscape PDF when an employee passes all assigned courses.
-- **i18n**: `react-i18next`; default language **Arabic**; language switcher on all main layouts.
+---
 
-## Prerequisites
+## Table des matières
 
-- **Node.js** 18+ (tested with current LTS; Node 20+ recommended).
-- **PostgreSQL** 14+.
-- **Anthropic API key** for quiz generation and vision OCR.
-- **ImageMagick** + **Ghostscript** (for `pdf2pic`) on Linux/macOS. On Windows, install [ImageMagick](https://imagemagick.org/) and Ghostscript so `magick`/`gs` are on `PATH`, or rely on the pdfjs + canvas fallback for development.
+1. [Présentation](#présentation)
+2. [Fonctionnalités](#fonctionnalités)
+3. [Stack technique](#stack-technique)
+4. [Prérequis](#prérequis)
+5. [Installation pas à pas](#installation-pas-à-pas)
+6. [Configuration (variables d’environnement)](#configuration-variables-denvironnement)
+7. [Lancement de l’application](#lancement-de-lapplication)
+8. [Comptes de démonstration](#comptes-de-démonstration)
+9. [Clés API (optionnel)](#clés-api-optionnel)
+10. [Structure du projet](#structure-du-projet)
+11. [Commandes utiles](#commandes-utiles)
+12. [Dépannage](#dépannage)
+13. [Sécurité & bonnes pratiques](#sécurité--bonnes-pratiques)
 
-## Installation
+---
+
+## Présentation
+
+**Averda Academy** est une application web complète pour la formation des collaborateurs Averda :
+
+- **Portail employé** : connexion par matricule + code PIN, parcours de cours (PDF), quiz, badges, profil, équipements (EPI).
+- **Portail administrateur** : tableau de bord, gestion des employés, des cours, des équipements (EPI), analyses, export Excel, **paramètres** (clés API Anthropic / ElevenLabs).
+
+L’interface est **multilingue** (arabe, français, anglais) avec support **RTL** pour l’arabe.
+
+---
+
+## Fonctionnalités
+
+| Module | Employé | Admin |
+|--------|---------|-------|
+| Authentification | Matricule `AV00000x` + PIN | Email + mot de passe |
+| Cours & PDF | Lecture, progression | CRUD cours, upload PDF |
+| Quiz | Quiz par cours, leçons | Génération IA (Anthropic) |
+| EPI | Réception, demandes, photos | Émission, calendrier d’expiration |
+| Tableau de bord | Accueil, défis, badges | KPI, activité, analytics |
+| Paramètres | — | Clés API chiffrées en base |
+
+---
+
+## Stack technique
+
+| Couche | Technologies |
+|--------|----------------|
+| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, Framer Motion, i18next, Recharts |
+| **Backend** | Node.js, Express, Prisma ORM |
+| **Base de données** | PostgreSQL 16 (Docker recommandé) |
+| **Auth** | JWT (access + refresh), bcrypt (PIN & mots de passe) |
+| **IA / Audio** | Anthropic (quiz, traduction), ElevenLabs (TTS) — optionnel |
+
+---
+
+## Prérequis
+
+Installez sur votre machine :
+
+| Outil | Version minimale | Rôle |
+|-------|------------------|------|
+| [Node.js](https://nodejs.org/) | **18+** (20 recommandé) | Runtime frontend & backend |
+| [npm](https://www.npmjs.com/) | 9+ | Gestion des paquets |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Récent | PostgreSQL en conteneur |
+| [Git](https://git-scm.com/) | 2.x | Cloner / pousser le code |
+
+> **Important :** Docker Desktop doit être **démarré** avant de lancer la base de données.
+
+---
+
+## Installation pas à pas
+
+### 1. Cloner le dépôt
 
 ```bash
-cd "Employee Onboarding - APP"
-npm install
+git clone https://github.com/rania-kett/Averda-Academy.git
+cd Averda-Academy
+```
+
+### 2. Installer les dépendances
+
+Depuis la **racine du projet** :
+
+```bash
 npm run install:all
 ```
 
-Copy environment files:
+Cela installe les paquets dans `server/` et `client/`.
+
+### 3. Créer le fichier d’environnement serveur
 
 ```bash
 copy server\.env.example server\.env
-# Edit server\.env — set DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET, ANTHROPIC_API_KEY
 ```
 
-### Database
+Sous Linux / macOS :
+
+```bash
+cp server/.env.example server/.env
+```
+
+Éditez `server/.env` (voir section [Configuration](#configuration-variables-denvironnement)).
+
+### 4. Démarrer PostgreSQL avec Docker
+
+**Si le conteneur existe déjà** (nom `averda-academy-db`) :
+
+```bash
+docker start averda-academy-db
+```
+
+**Sinon, créez-le une première fois** :
+
+```bash
+docker run -d ^
+  --name averda-academy-db ^
+  -e POSTGRES_USER=postgres ^
+  -e POSTGRES_PASSWORD=postgres ^
+  -e POSTGRES_DB=averda_academy ^
+  -p 5432:5432 ^
+  postgres:16
+```
+
+(Linux/macOS : remplacez `^` par `\` en fin de ligne.)
+
+Vérifiez que le conteneur tourne :
+
+```bash
+docker ps
+```
+
+### 5. Appliquer les migrations Prisma
 
 ```bash
 cd server
-npx prisma migrate dev --name init
-npx prisma db seed
+npx prisma migrate deploy
+npx prisma generate
 ```
 
-If you prefer push without migration files:
+### 6. Charger les données de démonstration (seed)
 
 ```bash
-npx prisma db push
 npx prisma db seed
 ```
 
-## Environment variables
+Le seed crée **5 employés**, **1 administrateur**, les **catégories**, le **catalogue EPI** et conserve les cours existants en base.
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DATABASE_URL` | PostgreSQL connection string | Yes |
-| `JWT_SECRET` | Access token signing secret | Yes |
-| `JWT_REFRESH_SECRET` | Refresh token signing secret | Yes |
-| `ANTHROPIC_API_KEY` | Anthropic API key (Claude) | Yes for quiz generation / vision |
-| `UPLOAD_DIR` | Server upload root (default `./uploads`) | No |
-| `CLIENT_URL` | Frontend origin for CORS (default `http://localhost:5173`) | No |
-| `PORT` | API port (default `3001`) | No |
+---
 
-## Run (development)
+## Configuration (variables d’environnement)
 
-From the repo root:
+Fichier : `server/.env` (ne jamais committer ce fichier).
+
+| Variable | Obligatoire | Description |
+|----------|-------------|-------------|
+| `DATABASE_URL` | Oui | Ex. `postgresql://postgres:postgres@127.0.0.1:5432/averda_academy` |
+| `JWT_SECRET` | Oui | Secret pour les tokens d’accès |
+| `JWT_REFRESH_SECRET` | Oui | Secret pour les refresh tokens |
+| `SETTINGS_SECRET` | Oui | Chiffrement AES des clés API en base |
+| `PORT` | Non | Port API (défaut **3001**) |
+| `CLIENT_URL` | Non | URL Vite (défaut `http://localhost:5173`) |
+| `UPLOAD_DIR` | Non | Dossier uploads (défaut `./uploads`) |
+| `ANTHROPIC_API_KEY` | Non | Fallback si non défini dans l’UI admin |
+| `ELEVENLABS_API_KEY` | Non | Fallback TTS |
+| `GEMINI_API_KEY` | Non | Fonctions optionnelles Gemini |
+
+Exemple minimal :
+
+```env
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/averda_academy"
+JWT_SECRET="changez-moi-en-production"
+JWT_REFRESH_SECRET="changez-moi-aussi"
+SETTINGS_SECRET="secret-long-pour-chiffrement-settings"
+PORT=3001
+CLIENT_URL=http://localhost:5173
+```
+
+Côté client, `client/.env` peut rester vide en dev : Vite proxy `/api` → `http://localhost:3001`.
+
+---
+
+## Lancement de l’application
+
+### Méthode recommandée (racine du projet)
 
 ```bash
 npm run dev
 ```
 
-This runs **server** (`tsx watch src/app.ts`) and **client** (`vite`) together.
+| Service | URL |
+|---------|-----|
+| **Interface (Vite)** | http://localhost:5173 |
+| **API (Express)** | http://localhost:3001 |
+| **Santé API** | http://localhost:3001/health |
 
-- **API**: http://localhost:3001  
-- **Web app**: http://localhost:5173  
+### Ne lancez pas uniquement le client
 
-### Demo accounts (after `cd server && npx prisma db seed`)
+Si vous faites seulement `cd client && npm run dev`, les appels `/api` échoueront. **Toujours** `npm run dev` depuis la racine (sauf build de production).
 
-- **Admin (Averda)**: `admin@averda.ma` / `Admin@2026`
-- **Employees**: `AVR-DRV-001` … `AVR-DRV-005`, `AVR-WRK-001` … `AVR-WRK-005` — PIN **`1234`**
+### Build production (client)
 
-The app opens with a short **splash** at `/`, then redirects to **`/login`** (employee). Admin: **`/admin/login`**.
+```bash
+cd client
+npm run build
+```
 
-## Adding a new course (admin)
+---
 
-1. Sign in at `/admin/login`.
-2. Open **Courses** → **Add course**: titles (AR required), descriptions, target group, icon, gradient, PDF upload.
-3. Click **Generate quiz** on the course card. The server runs vision extraction (if needed), then Claude generates 10 validated questions. Use **Regenerate** to replace an existing quiz.
+## Comptes de démonstration
 
-## How quiz generation works
+### Employés — code PIN : `1234`
 
-1. PDF bytes are read from disk.
-2. **Primary**: Each page is rendered to PNG via `pdf2pic` (ImageMagick/Ghostscript).
-3. **Fallback**: Pages rendered with `pdfjs-dist` and `@napi-rs/canvas`.
-4. Each PNG is sent to **Claude Vision**; Arabic text is concatenated into `Course.extractedText` (UTF-8).
-5. Extracted text is trimmed (~6000 token budget by character estimate) and sent to **Claude Sonnet** with a strict JSON-only system prompt.
-6. JSON is parsed and validated; on failure, one retry with a stricter message.
-7. Questions are stored on the `Quiz` model linked to the course.
+| Matricule | Nom | Rôle (seed) |
+|-----------|-----|-------------|
+| `AV000001` | يوسف العلوي | Conducteur |
+| `AV000002` | كريم بنعلي | Chargeur |
+| `AV000003` | أمين الراشدي | Maintenance |
+| `AV000004` | سعيد المنصوري | Balayeur |
+| `AV000005` | هشام التازي | Chef d’équipe |
 
-## Project layout
+**Connexion employé :** http://localhost:5173 → saisir les 6 chiffres du matricule + PIN sur le clavier.
 
-- `server/` — Express API, Prisma, services (`claudeQuiz`, `badgeService`, `certificateService`), `pdfExtract` (vision + fallback).
-- `client/` — React 18, Vite, Tailwind, Framer Motion, react-pdf, Recharts, react-i18next.
-- `package.json` (root) — `npm run dev` runs client + server with `concurrently`.
+### Administrateur
 
-## Known limitations
+| Champ | Valeur |
+|-------|--------|
+| **URL** | http://localhost:5173/admin/login |
+| **Email** | `admin@averda.ma` |
+| **Mot de passe** | `Admin@2026` |
 
-- **Scanned PDFs without clear glyphs**: If both vision and text extraction fail, admins see a clear error suggesting OCR preprocessing.
-- **ImageMagick on Windows**: Must be installed separately; otherwise the pdfjs fallback is used (slower, higher CPU).
-- **Quiz security**: The employee quiz API returns full question payloads (including correct answers) for the in-app step-by-step UX; suitable for internal training networks—harden if exposing to untrusted clients.
+> Changez ces identifiants en production.
 
-## License
+---
 
-Proprietary — internal use for FleetLearn deployment.
+## Clés API (optionnel)
+
+Sans clés, l’app fonctionne ; la génération de quiz IA et la synthèse vocale nécessitent des clés valides.
+
+1. Connectez-vous en **admin**.
+2. Ouvrez **الإعدادات / Paramètres** (onglet dans le tableau de bord).
+3. Saisissez et enregistrez :
+   - **Anthropic** — génération de quiz & traduction
+   - **ElevenLabs** — synthèse vocale des cours
+4. Utilisez **اختبار الاتصال / Tester la connexion** pour valider.
+
+Les clés sont **chiffrées** en base (`AppSettingKey`) ; l’interface n’affiche jamais la valeur complète.
+
+---
+
+## Structure du projet
+
+```
+Averda-Academy/
+├── client/                 # Frontend React (Vite)
+│   ├── public/
+│   │   ├── averda_logo.png # Logo (README & UI)
+│   │   └── courses/        # PDF des cours (dev)
+│   └── src/
+│       ├── pages/          # Login, Home, Admin dashboard…
+│       ├── components/     # UI, EPI, admin…
+│       └── api/            # Client Axios
+├── server/                 # Backend Express
+│   ├── prisma/
+│   │   ├── schema.prisma   # Modèle de données
+│   │   ├── migrations/     # Migrations SQL
+│   │   └── seed.ts         # Données de démo
+│   └── src/
+│       ├── routes/         # auth, admin, epi, quiz…
+│       └── services/       # IA, clés API, quiz…
+├── package.json            # npm run dev (les deux apps)
+└── README.md               # Ce fichier
+```
+
+### Routes admin principales
+
+| Chemin | Description |
+|--------|-------------|
+| `/admin` | Tableau de bord (onglets : employés, EPI, cours, analytics, paramètres) |
+| `/admin/login` | Connexion administrateur |
+| `/admin/settings` | Paramètres (même shell que le dashboard) |
+| `/admin/epi` | Redirige vers `/admin` (EPI = onglet « معدات ») |
+
+---
+
+## Commandes utiles
+
+| Commande | Où | Action |
+|----------|-----|--------|
+| `npm run dev` | Racine | API + frontend en développement |
+| `npm run install:all` | Racine | Installe server + client |
+| `npx prisma migrate deploy` | `server/` | Applique les migrations |
+| `npx prisma db seed` | `server/` | Réinitialise employés + EPI (préserve admin/cours) |
+| `npx prisma studio` | `server/` | Interface visuelle BDD |
+| `npm run build` | `client/` | Build production frontend |
+
+---
+
+## Dépannage
+
+| Problème | Solution |
+|----------|----------|
+| Échec de connexion / « identifiants incorrects » avec bon PIN | Vérifiez que l’API tourne : `npm run dev` à la **racine**, pas seulement le client. |
+| `EADDRINUSE` port 3001 | Arrêtez l’ancien processus Node ou fermez le terminal qui occupe le port. |
+| `ECONNREFUSED` / proxy Vite | Le serveur sur 3001 n’est pas démarré. |
+| Base de données inaccessible | `docker start averda-academy-db` puis vérifiez `DATABASE_URL`. |
+| Port 5432 déjà utilisé | Changez le mapping Docker (`-p 5433:5432`) et adaptez `DATABASE_URL`. |
+| PDF des cours introuvable | Placez les PDF dans `client/public/courses/` (structure par rôle). |
+
+Test API rapide :
+
+```bash
+curl http://localhost:3001/health
+```
+
+Réponse attendue : `{"ok":true}`
+
+---
+
+## Sécurité & bonnes pratiques
+
+- Ne commitez **jamais** `server/.env` ni de clés API.
+- En production : HTTPS, secrets forts, mots de passe admin changés.
+- Les fichiers uploadés sont dans `server/uploads/` (ignoré par Git).
+- `node_modules/` et `dist/` ne doivent pas être versionnés.
+
+---
+
+## Dépôt & contribution
+
+- **Repository :** [https://github.com/rania-kett/Averda-Academy](https://github.com/rania-kett/Averda-Academy.git)
+- Projet privé Averda — usage interne formation & sécurité.
+
+---
+
+<p align="center">
+  <img src="client/public/averda_logo.png" alt="Averda" width="120" /><br/>
+  <sub>© Averda — Averda Academy · Formation & sécurité au travail</sub>
+</p>

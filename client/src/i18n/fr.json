@@ -1,10 +1,21 @@
 {
-  "app": { "name": "FleetLearn", "tagline": "Formation et sécurité" },
+  "app": { "name": "Averda Academy", "tagline": "Formation et sécurité" },
+  "course": {
+    "pdfUnavailable": "Aucun PDF n'a encore été téléversé. Veuillez contacter votre administrateur."
+  },
+  "training": {
+    "chips": {
+      "roleSkills": "Compétences métier",
+      "equipment": "Équipement",
+      "safety": "Sécurité"
+    }
+  },
   "common": {
     "loading": "Chargement…",
     "error": "Une erreur s'est produite",
     "retry": "Réessayer",
     "save": "Enregistrer",
+    "saving": "Enregistrement…",
     "cancel": "Annuler",
     "delete": "Supprimer",
     "edit": "Modifier",
@@ -31,8 +42,13 @@
     "settings": "Paramètres",
     "notifications": "Notifications",
     "language": "Langue",
+    "langEnglish": "English",
+    "langFrench": "Français",
+    "langArabic": "العربية",
     "noData": "Aucune donnée",
     "sendReminder": "Envoyer un rappel",
+    "reminderSent": "Rappel envoyé",
+    "explanation": "Explication",
     "add": "Ajouter",
     "preview": "Aperçu PDF",
     "toggleActive": "Activer/désactiver",
@@ -47,20 +63,31 @@
     "quizGenOk": "Quiz généré",
     "progressSaved": "Progression enregistrée",
     "featureComingSoon": "Fonctionnalité à venir",
-    "apiKeyRequired": "Clé API Anthropic requise. Définissez ANTHROPIC_API_KEY sur le serveur.",
+    "apiKeyRequired": "Clé API Gemini requise. Définissez GEMINI_API_KEY sur le serveur.",
     "openMenu": "Ouvrir le menu",
     "expandMenu": "Déplier la barre latérale",
     "collapseMenu": "Replier la barre latérale",
     "themeLight": "Passer en mode clair",
-    "themeDark": "Passer en mode sombre"
+    "themeDark": "Passer en mode sombre",
+    "pagination": {
+      "prev": "Précédent",
+      "next": "Suivant",
+      "pageOf": "Page {{current}} / {{total}}"
+    }
   },
   "login": {
+    "portalBadge": "Portail employé",
+    "signInCta": "Se connecter",
+    "employeeIdBilingual": "N° employé / Employee ID",
     "title": "Connexion employé",
     "employeeId": "Matricule",
-    "employeeIdPh": "ex. AVR-DRV-001",
+    "employeeIdPh": "ex. AV000001",
+    "employeeIdDigitsPh": "ex. 000001",
+    "employeeIdDigitsAria": "Saisissez 6 chiffres pour le matricule",
     "pin": "Code PIN",
     "submit": "Connexion",
     "error": "Identifiant ou PIN invalide",
+    "networkError": "Impossible de joindre le serveur. Lancez l'application depuis la racine : npm run dev",
     "shake": "Vérifiez vos informations"
   },
   "adminLogin": {
@@ -68,12 +95,16 @@
     "email": "E-mail",
     "password": "Mot de passe",
     "submit": "Connexion",
-    "error": "E-mail ou mot de passe invalide"
+    "error": "E-mail ou mot de passe invalide",
+    "networkError": "Impossible de joindre le serveur. Lancez depuis la racine : npm run dev"
   },
   "nav": {
     "employeeBar": "Navigation principale",
     "home": "Accueil",
     "courses": "Formations",
+    "myTraining": "Ma Formation",
+    "challenges": "Défis",
+    "profile": "Profil",
     "dashboard": "Tableau de bord",
     "employees": "Employés",
     "analytics": "Analytique",
@@ -88,6 +119,174 @@
     "EN": "Anglais"
   },
   "employee": {
+    "challenges": {
+      "title": "Défis",
+      "subtitle": "Complétez des défis pour gagner des badges et des récompenses.",
+      "empty": "Aucun défi pour le moment.",
+      "groups": {
+        "onboarding": "🧩 Onboarding",
+        "operational": "🦺 Opérations & EPI",
+        "learning": "📚 Apprentissage",
+        "performance": "⚡ Performance",
+        "final": "🛡️ Final"
+      },
+      "labels": { "tasks": "Tâches", "impact": "Impact", "badges": "Badges" },
+      "status": { "completed": "✓ Terminé", "inProgress": "En cours" }
+    },
+    "homeDash": {
+      "formations": {
+        "title": "Formations",
+        "pill": "Voir",
+        "hint": "{{n}} restantes"
+      },
+      "tasks": {
+        "title": "Tâches",
+        "pill": "À compléter",
+        "hint": "Touchez pour voir les détails"
+      },
+      "continue": {
+        "title": "Continuer",
+        "hint": "Reprenez là où vous vous êtes arrêté"
+      },
+      "badges": {
+        "title": "Badges",
+        "pill": "Niveau {{level}}",
+        "value": "{{n}} badges",
+        "hint": "Continuez pour débloquer la suite"
+      }
+    },
+    "profileDash": {
+      "formations": { "title": "Formations complétées" },
+      "quizAvg": { "title": "Moyenne aux quiz" },
+      "time": { "title": "Temps d'apprentissage", "value": "{{minutes}} min", "hint": "Temps total cumulé" },
+      "epi": {
+        "title": "Mes équipements",
+        "subtitle": "{{n}} équipements non validés",
+        "pillOk": "Validé",
+        "pillWarn": "À vérifier",
+        "empty": "Aucun équipement",
+        "alert": "{{n}} équipements EPI non validés — vérifiez avant votre prochaine intervention"
+      },
+      "levelBadges": {
+        "title": "Niveau & Badges",
+        "level": "Niveau {{level}} — {{xp}} XP"
+      }
+    },
+    "epi": {
+      "title": "Équipements EPI",
+      "subtitle": "Suivez vos EPI et demandez un remplacement facilement",
+      "badgeNew": "Nouveau",
+      "manageCta": "Gérer mes équipements",
+      "receipt": { "title": "Réception des équipements", "progress": "{{received}} sur {{total}} reçus" },
+      "kpis": {
+        "received": "Reçus ({{n}})",
+        "pending": "En attente ({{n}})",
+        "needs": "À traiter ({{n}})"
+      },
+      "sizes": {
+        "title": "Mes tailles",
+        "hint": "Renseignez vos tailles pour recevoir l'équipement adapté.",
+        "cta": "Définir mes tailles",
+        "edit": "Modifier les tailles",
+        "modalTitle": "Choisissez vos tailles",
+        "save": "Enregistrer les tailles",
+        "shirt": "Chemise : {{v}}",
+        "shoe": "Chaussures : {{v}}",
+        "gloves": "Gants : {{v}}",
+        "vest": "Gilet : {{v}}",
+        "pants": "Pantalon : {{v}}",
+        "labels": {
+          "shirt": "Chemise",
+          "shoe": "Chaussures",
+          "gloves": "Gants",
+          "vest": "Gilet",
+          "pantsOptional": "Pantalon (optionnel)"
+        }
+      },
+      "items": {
+        "title": "Mes équipements",
+        "assigned": "Assigné",
+        "notAssigned": "Pas encore assigné",
+        "codes": {
+          "veste_hv": "Veste haute visibilité",
+          "gilet_hv": "Gilet haute visibilité",
+          "veste_chef": "Veste (tenue chef d'équipe)",
+          "pull_hiver": "Pull hiver",
+          "tee_shirt": "Tee-shirt",
+          "pantalon": "Pantalon de travail",
+          "combinaison": "Combinaison",
+          "chaussures": "Chaussures de sécurité",
+          "gants": "Gants de travail",
+          "gants_renforces": "Gants renforcés",
+          "casquette": "Casquette",
+          "casquette_cache_nuque": "Casquette cache-nuque",
+          "bonnet": "Bonnet",
+          "masque": "Masque anti-poussière",
+          "lunettes": "Lunettes de protection",
+          "protection_auditive": "Protection auditive",
+          "impermeable": "Imperméable / Manteau de pluie",
+          "chemise": "Chemise"
+        }
+      },
+      "status": {
+        "received": "Reçu",
+        "pending": "En attente",
+        "issued": "En attente",
+        "needs": "À traiter",
+        "needsRenewal": "À renouveler",
+        "needsReplacement": "À remplacer",
+        "notReceived": "Non reçu",
+        "notIssued": "Non attribué",
+        "expired": "Expiré",
+        "replaced": "Remplacé"
+      },
+      "renew": { "title": "Demande de remplacement", "hint": "Vous avez des équipements à remplacer. Ouvrez un élément puis appuyez sur « Demander un remplacement »." },
+      "itemSheet": {
+        "statusTitle": "Statut de l'élément",
+        "scale": { "assigned": "Assigné", "active": "Actif", "worn": "Usé", "replace": "Remplacer" },
+        "confirmReception": "Confirmer la réception",
+        "requestReplacement": "Demander un remplacement",
+        "notRecorded": "Cet élément n'a pas encore été enregistré."
+      },
+      "reception": {
+        "title": "Confirmation de réception",
+        "notifySupervisor": "Informer le superviseur de la réception",
+        "fitOk": "La taille convient",
+        "signatureOptional": "Signature (optionnel)",
+        "signaturePlaceholder": "Votre nom",
+        "noteOptional": "Note (optionnel)",
+        "notePlaceholder": "Ex : taille à échanger…",
+        "confirm": "Confirmer"
+      },
+      "replacement": {
+        "title": "Demande de remplacement",
+        "reasonTitle": "Raison",
+        "noteTitle": "Note complémentaire (optionnel)",
+        "notePlaceholder": "Écrivez une note courte",
+        "send": "Envoyer la demande",
+        "sentTitle": "Demande envoyée",
+        "sentHint": "Un administrateur vous contactera bientôt.",
+        "reasons": {
+          "damaged": "Endommagé",
+          "lost": "Perdu",
+          "wrongSize": "Mauvaise taille",
+          "expired": "Expiré",
+          "other": "Autre"
+        }
+      },
+      "toasts": {
+        "sizesSaved": "Tailles enregistrées",
+        "receptionConfirmed": "Réception confirmée",
+        "replacementSent": "Demande envoyée"
+      },
+      "errors": {
+        "dbMigrationRequired": "Cette fonctionnalité nécessite une mise à jour de la base de données.",
+        "loadFailed": "Impossible de charger les données EPI.",
+        "saveSizesFailed": "Impossible d'enregistrer les tailles. Réessayez.",
+        "confirmReceptionFailed": "Impossible de confirmer la réception.",
+        "replacementFailed": "Impossible d'envoyer la demande."
+      }
+    },
     "greeting": "Bonjour {{name}}",
     "greetingAr": "Bienvenue {{name}}",
     "overallProgress": "Progression globale",
@@ -96,6 +295,25 @@
     "continue": "Continuer la formation",
     "noContinue": "Choisissez une formation pour commencer",
     "badges": "Badges",
+    "badgesPage": {
+      "title": "Mes badges",
+      "locked": "Verrouillé",
+      "unlocked": "Déverrouillé"
+    },
+    "badgeName": {
+      "safety_starter": "Débutant Sécurité",
+      "quiz_master": "Maître des Quiz",
+      "consistent_learner": "Apprenant Régulier",
+      "safety_compliant": "Conforme Sécurité",
+      "perfect_fit": "Ajustement Parfait",
+      "fully_equipped": "Entièrement Équipé",
+      "detail_oriented": "Orienté Détail",
+      "quick_responder": "Répondeur Rapide",
+      "challenge_trifecta": "Déclencheur de Défis",
+      "active_user": "Utilisateur Actif",
+      "top_performer": "Meilleur Performeur",
+      "safety_champion": "Champion Sécurité"
+    },
     "locked": "Verrouillé",
     "stats": { "streak": "Série de jours", "avgScore": "Score moyen", "certs": "Certificats" },
     "seeAll": "Voir tout",
@@ -113,13 +331,73 @@
       "markComplete": "Marquer comme terminé",
       "takeQuiz": "Passer le quiz",
       "pageOf": "Page {{current}} / {{total}}",
+      "pdfPageOf": "Page {{current}} sur {{total}}",
+      "pdfLoadError": "Impossible de charger le fichier, veuillez réessayer",
+      "pdfRetry": "Réessayer",
+      "pdfAlternativeViewer": "Visionneuse alternative",
+      "pdfBackToBuiltIn": "Visionneuse intégrée",
+      "openPdfNewTab": "Ouvrir le PDF",
+      "pdfViewGoogle": "Visionneuse Google",
+      "pdfViewDirect": "Intégration directe",
+      "pdfDownloadMode": "Ouverture seule",
+      "pdfOpenExternalShort": "Ouvrir à l’extérieur",
+      "pdfInlineUnavailable": "Ce PDF ne peut pas s’afficher directement dans le navigateur. Ouvrez-le dans un nouvel onglet.",
+      "pdfBlobLoading": "Chargement du document…",
+      "pdfIframeTitle": "Document PDF",
       "prev": "Précédent",
       "next": "Suivant",
-      "quizSoonLong": "Le quiz sera disponible lorsque l'administrateur l'aura généré."
+      "slideXofY": "Diapositive {{current}} sur {{total}}",
+      "expand": "Agrandir",
+      "close": "Fermer",
+      "quizSoonLong": "Le quiz sera disponible lorsque l'administrateur l'aura généré.",
+      "startLessonQuiz": "Commencer le quiz 📝",
+      "latestLessonQuizResult": "Dernier résultat : {{pct}} % ({{score}}/{{total}})",
+      "startTrafficQuiz": "Passer le quiz 📝",
+      "trafficQuizTitle": "Quiz : Code de la route"
+    },
+    "assessmentBanner": {
+      "title": "Évaluation de niveau",
+      "subtitle": "Répondez à 10 questions pour que nous puissions vous attribuer les formations adaptées",
+      "startCta": "Commencer le test",
+      "requiredNote": "Obligatoire avant d’accéder aux formations",
+      "failTitle": "Échec au test — veuillez réessayer",
+      "failSubtitle": "Il faut au moins 70 % pour débloquer les formations.",
+      "retryCta": "Repasser le test"
+    },
+    "assessmentModal": {
+      "saveFailed": "Impossible d’enregistrer. Veuillez réessayer.",
+      "quiz": {
+        "progress": "Question {{current}} sur {{total}}",
+        "streak": "{{n}} bonnes réponses d’affilée !",
+        "next": "Suivant"
+      },
+      "results": {
+        "badges": { "excellent": "Excellent !", "good": "Bien", "needsReview": "À revoir" },
+        "msgPass": "Bravo ! Vous maîtrisez les bases de la sécurité. Vos formations sont prêtes.",
+        "msgFail": "Pas de souci — la formation HSSEQ de base vous aidera à renforcer vos connaissances.",
+        "reviewTitle": "Revue des réponses",
+        "yourAnswer": "Votre réponse :",
+        "correctAnswer": "Correct :",
+        "noAnswer": "—",
+        "cta": "Commencer l’apprentissage"
+      }
     },
     "profile": {
+      "title": "Profil",
       "menu": "Compte",
-      "langLabel": "Langue préférée"
+      "langLabel": "Langue préférée",
+      "employeeId": "ID employé",
+      "group": "Groupe",
+      "language": "Langue",
+      "statsTitle": "Vos statistiques",
+      "coursesCompleted": "Formations terminées",
+      "avgScore": "Score moyen des quiz",
+      "timeSpent": "Temps d'apprentissage",
+      "badgesTitle": "Badges obtenus",
+      "unlockedOn": "Débloqué le",
+      "noBadges": "Aucun badge pour le moment",
+      "saveLang": "Enregistrer la langue",
+      "logout": "Se déconnecter"
     },
     "quiz": {
       "of": "Question {{n}} sur 10",
@@ -131,7 +409,125 @@
       "failedMsg": "Relisez le contenu et réessayez.",
       "tryAgain": "Réessayer",
       "backCourses": "Retour aux formations",
-      "review": "Explication"
+      "review": "Explication",
+      "mistakes": {
+        "back": "Retour",
+        "title": "Revoir les erreurs",
+        "empty": "Aucune erreur.",
+        "yourAnswer": "Votre réponse : ",
+        "correctAnswer": "Bonne réponse : ",
+        "explanation": "Explication : ",
+        "retryMistakesOnly": "Refaire uniquement les erreurs",
+        "retryFull": "Recommencer le quiz"
+      }
+    },
+    "layout": {
+      "settingsTitle": "Paramètres",
+      "appearance": "Apparence",
+      "darkMode": "Mode sombre",
+      "aboutAverda": "À propos d'Averda",
+      "aboutAverdaCta": "À propos d'Averda",
+      "notificationsEmpty": "Aucune notification pour le moment",
+      "markAllRead": "Tout marquer comme lu",
+      "courseAudioSoon": "Audio de la formation — bientôt",
+      "emergencyTitle": "Besoin d’aide urgente ?",
+      "emergencySubtitle": "Votre responsable sera contacté directement.",
+      "emergencyFab": "Urgence",
+      "emergencyCancel": "Annuler",
+      "emergencyCall": "Appeler maintenant"
+    },
+    "home": {
+      "welcome": "Bienvenue, {{name}} !",
+      "intro": "Je suis Averda Academy, votre compagnon de formation chez Averda.",
+      "motivate0": "C'est parti — votre parcours commence aujourd'hui 🚀",
+      "motivate40": "Bon début — continuez, vous y arrivez 💪",
+      "motivate79": "Super progrès — vous êtes à mi-chemin 🔥",
+      "motivate99": "Presque fini — un dernier effort ⚡",
+      "motivate100": "Formation terminée — excellent travail 🏆",
+      "reminderTitle": "💡 Rappel du jour",
+      "reminderShuffleAria": "Autre rappel",
+      "reminderShuffleTitle": "Afficher un autre rappel",
+      "statSafety": "Score sécurité",
+      "statCourses": "Formations",
+      "statTasks": "Tâches",
+      "trainingProgress": "Progression",
+      "lessonsCompleted": "{{done}} sur {{total}} leçons terminées",
+      "myCourses": "Mes formations",
+      "statusCompleted": "Terminé",
+      "statusInProgress": "En cours",
+      "statusNotStarted": "Pas commencé",
+      "ctaReview": "Revoir",
+      "ctaContinue": "Continuer ▷",
+      "ctaStart": "Commencer",
+      "hsseqRequiredPill": "Obligatoire",
+      "lockedCta": "Terminez d'abord l'évaluation 🔒",
+      "lockedBasicsCta": "Complétez d’abord « Directives de base » 🔒",
+      "myBadges": "Mes badges",
+      "seeAllBadges": "Voir tout",
+      "noBadgesYet": "Pas encore de badges — commencez une formation !"
+    },
+    "basicsGate": {
+      "title": "Débloquez vos formations",
+      "subtitle": "Votre score d’évaluation est inférieur à 70 %. Complétez « Directives de base » et réussissez le quiz pour débloquer le reste.",
+      "cta": "Ouvrir Directives de base",
+      "toast": "Veuillez d’abord compléter « Directives de base »."
+    },
+    "roleLabels": {
+      "chauffeur": "Chauffeur",
+      "balayeur": "Balayeur",
+      "chargeur": "Chargeur",
+      "parc": "Agent parc",
+      "maintenance": "Maintenance",
+      "manager": "Encadrant",
+      "unknown": "Équipe"
+    },
+    "coursesExt": {
+      "emptyDesc": "Votre administrateur ajoutera vos formations bientôt.",
+      "filteredEmptyTitle": "Aucune formation dans cet onglet",
+      "filteredEmptyDesc": "Essayez un autre filtre ou commencez une formation.",
+      "filteredCta": "Commencer",
+      "lessonQuizLatest": "Dernier quiz : {{pct}} %",
+      "emptyCompletedTitle": "Aucune formation terminée",
+      "emptyInProgressTitle": "Aucune formation en cours"
+    },
+    "dashboard": {
+      "formations": {
+        "title": "📚 Formations",
+        "value": "{{done}} sur {{total}} complétées",
+        "valueEmpty": "0 formation",
+        "helper": "Continuez comme ça — vous progressez bien.",
+        "helperZero": "Commencez une formation pour lancer votre progression."
+      },
+      "tasks": {
+        "title": "✅ Tâches en attente",
+        "value": "{{n}} tâches restantes",
+        "valueZero": "Aucune tâche en attente",
+        "helper": "Terminez vos formations pour réduire ce nombre.",
+        "helperZero": "Bravo — tout est à jour."
+      },
+      "time": {
+        "title": "⏱️ Temps d'apprentissage",
+        "value": "{{minutes}} minutes",
+        "valueZero": "0 minute",
+        "helper": "Chaque minute compte pour votre progression.",
+        "helperZero": "Commencez une formation pour cumuler du temps."
+      },
+      "safety": {
+        "title": "🛡️ Score sécurité",
+        "helper": "Continuez à suivre les bonnes pratiques.",
+        "helperZero": "Complétez des formations pour améliorer votre score."
+      },
+      "quizAvg": {
+        "title": "📊 Moyenne aux quiz",
+        "helper": "Vos résultats s'améliorent avec la pratique.",
+        "helperZero": "Aucun quiz complété pour l'instant."
+      },
+      "level": {
+        "title": "🏅 Niveau",
+        "value": "Niveau {{level}} — {{xp}} XP",
+        "helper": "Continuez pour gagner plus d'XP.",
+        "helperZero": "Commencez une formation pour gagner de l'XP."
+      }
     }
   },
   "admin": {
@@ -181,6 +577,8 @@
       "resetConfirm": "Toute la progression sera supprimée.",
       "joinDate": "Date d'entrée",
       "langPref": "Langue",
+      "courseQuiz": "Quiz de formation",
+      "lessonQuiz": "Quiz de leçon",
       "quizHistory": "Tentatives de quiz",
       "progressSec": "Progression par formation"
     },
@@ -195,13 +593,17 @@
     "courses": {
       "title": "Gestion des formations",
       "add": "Ajouter une formation",
+      "filterByCategory": "Filtrer par catégorie",
       "empty": "Aucune formation",
       "genQuiz": "Générer le quiz",
       "pdfStatus": "PDF",
+      "noPdf": "Pas de PDF",
       "quizStatus": "Quiz",
       "completion": "Taux de complétion",
       "updated": "Mis à jour",
       "formTitle": "Nouvelle formation",
+      "active": "Actif (visible par les employés)",
+      "titleRequired": "Veuillez saisir un titre dans au moins une langue.",
       "titleAr": "Titre (arabe)",
       "titleFr": "Titre (français)",
       "titleEn": "Titre (anglais)",
@@ -209,12 +611,17 @@
       "descFr": "Description (français)",
       "descEn": "Description (anglais)",
       "target": "Groupe cible",
+      "allCategories": "Toutes les catégories",
+      "allCategoriesHint": "Choisissez cette ligne seule pour affecter la formation à tout le monde, ou combinez des catégories précises (Ctrl/Cmd + clic).",
+      "pickCategory": "Sélectionnez au moins une catégorie.",
       "targetBoth": "Les deux",
       "icon": "Icône",
       "color": "Couleur de carte",
       "dropPdf": "Déposez le PDF ou cliquez",
       "genError": "Échec de génération du quiz",
-      "edit": "Modifier la formation"
+      "quizNotGenerated": "Quiz non généré",
+      "edit": "Modifier la formation",
+      "aiFillUnavailable": "Remplissage automatique depuis le PDF indisponible. Vérifiez la connexion et la clé API, ou saisissez les champs manuellement."
     },
     "analytics": {
       "title": "Analytique",
@@ -228,6 +635,65 @@
     "settings": {
       "title": "Paramètres",
       "body": "Les paramètres entreprise apparaîtront ici."
+    },
+    "quizResults": {
+      "sectionTitle": "Résultats des quiz",
+      "avgAssessment": "Score moyen d'évaluation (HSSEQ)",
+      "assessmentPassRate": "Taux de réussite à l'évaluation",
+      "avgLessonQuizzes": "Moyenne des quiz de leçon",
+      "totalLessonAttempts": "Total des tentatives de quiz de leçon",
+      "assessmentTableTitle": "Résultats du quiz d'évaluation",
+      "lessonAttemptsTitle": "Tentatives de quiz de leçon",
+      "colEmployee": "Employé",
+      "colGroup": "Groupe",
+      "colPercent": "Score",
+      "colStatus": "Statut",
+      "colDate": "Date",
+      "colCourse": "Formation",
+      "colAttempt": "Tentative",
+      "colScore": "Résultat",
+      "colBest": "Meilleur score",
+      "pass": "Réussi",
+      "fail": "Échoué"
+    },
+    "epi": {
+      "title": "Suivi EPI (équipements de protection)",
+      "subtitle": "Résumé et traçabilité par employé",
+      "kpiPending": "Demandes de renouvellement en attente :",
+      "kpiMissingSizes": "Tailles manquantes :",
+      "colEmployee": "Employé",
+      "colSizes": "Tailles",
+      "colStatus": "Statut",
+      "colRenewals": "Demandes de renouvellement",
+      "colUpdated": "Dernière mise à jour",
+      "sizeShirt": "Chemise",
+      "sizePants": "Pantalon",
+      "sizeShoe": "Chaussures",
+      "sizeGloves": "Gants",
+      "sizeVest": "Gilet",
+      "statusNeedsFollowUp": "À suivre",
+      "statusGood": "OK",
+      "itemsLine": "Articles : {{total}} • Reçus : {{received}} • Expirés : {{expired}}",
+      "empty": "Aucune donnée EPI pour le moment",
+      "emptyActivity": "Aucune activité pour le moment",
+      "emptyAtRisk": "Aucun employé ne nécessite de suivi",
+      "emptyTop": "Aucune donnée pour le moment"
+    },
+    "epiManage": {
+      "open": "Gérer EPI",
+      "title": "Gestion EPI",
+      "categoryDefaults": "Paramètres par catégorie",
+      "issueSection": "Attribuer EPI",
+      "useDefaults": "Utiliser les défauts",
+      "issueHint": "Sélectionnez un employé dans le tableau pour attribuer des équipements.",
+      "issueBtn": "Attribuer",
+      "issueConfirm": "Attribuer les équipements sélectionnés",
+      "selectAtLeastOne": "Sélectionnez au moins un équipement",
+      "issued": "Équipements attribués",
+      "saved": "Paramètres enregistrés",
+      "loadFailed": "Impossible de charger la gestion EPI",
+      "saveFailed": "Impossible d'enregistrer les paramètres",
+      "issueFailed": "Impossible d'attribuer les équipements"
     }
   },
   "badge": { "new": "Nouveau badge !" },

@@ -1,103 +1,335 @@
-import { PrismaClient, Role, UserGroup, Lang } from "@prisma/client";
+import { PrismaClient, Role, Lang } from "@prisma/client";
 import bcrypt from "bcrypt";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 
 const prisma = new PrismaClient();
 
 async function hashPin(pin: string): Promise<string> {
   return bcrypt.hash(pin, 12);
 }
+
 async function hashPassword(pw: string): Promise<string> {
   return bcrypt.hash(pw, 12);
 }
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-function daysAgo(days: number): Date {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  d.setHours(10 + (days % 7), 30, 0, 0);
-  return d;
+/** Tables wiped by seed (no ActivityLog/AuditLog in schema — activity feed is built from these). */
+async function printWipeCounts(label: string): Promise<void> {
+  const counts = {
+    notification: await prisma.notification.count(),
+    epiReceptionConfirmation: await prisma.epiReceptionConfirmation.count(),
+    epiIssuance: await prisma.epiIssuance.count(),
+    epiReplacementRequest: await prisma.epiReplacementRequest.count(),
+    epiRenewalRequest: await prisma.epiRenewalRequest.count(),
+    lessonProgress: await prisma.lessonProgress.count(),
+    quizAttempt: await prisma.quizAttempt.count(),
+    lessonQuizAttempt: await prisma.lessonQuizAttempt.count(),
+    userBadge: await prisma.userBadge.count(),
+    certificate: await prisma.certificate.count(),
+    employees: await prisma.user.count({ where: { role: Role.EMPLOYEE } }),
+  };
+  console.log(`📊 ${label}:`, JSON.stringify(counts, null, 2));
 }
 
-const dummyQuiz = () => {
-  const mk = (
-    id: number,
-    diff: "easy" | "medium" | "hard",
-    ar: string,
-    fr: string,
-    en: string
-  ) => ({
-    id,
-    difficulty: diff,
-    question: { ar, fr, en },
-    options: {
-      A: { ar: "خيار أ", fr: "Option A", en: "Option A" },
-      B: { ar: "خيار ب", fr: "Option B", en: "Option B" },
-      C: { ar: "خيار ج", fr: "Option C", en: "Option C" },
-      D: { ar: "خيار د", fr: "Option D", en: "Option D" },
-    },
-    correct: "A" as const,
-    explanation: {
-      ar: "الإجابة الصحيحة وفق المادة التدريبية.",
-      fr: "Réponse correcte selon le support.",
-      en: "Correct answer per the training material.",
-    },
-  });
-  return [
-    mk(1, "easy", "سؤال 1؟", "Question 1 ?", "Question 1?"),
-    mk(2, "easy", "سؤال 2؟", "Question 2 ?", "Question 2?"),
-    mk(3, "easy", "سؤال 3؟", "Question 3 ?", "Question 3?"),
-    mk(4, "easy", "سؤال 4؟", "Question 4 ?", "Question 4?"),
-    mk(5, "medium", "سؤال 5؟", "Question 5 ?", "Question 5?"),
-    mk(6, "medium", "سؤال 6؟", "Question 6 ?", "Question 6?"),
-    mk(7, "medium", "سؤال 7؟", "Question 7 ?", "Question 7?"),
-    mk(8, "medium", "سؤال 8؟", "Question 8 ?", "Question 8?"),
-    mk(9, "hard", "سؤال 9؟", "Question 9 ?", "Question 9?"),
-    mk(10, "hard", "سؤال 10؟", "Question 10 ?", "Question 10?"),
-  ];
-};
-
-/** Driver-assigned course slugs (matches seed order) */
-const DRIVER_SLUGS = [
-  "first-aid",
-  "fleet-safety",
-  "formation-collecte",
-  "fire-safety",
-  "company-policy",
-  "emergency-procedures",
-] as const;
-
-const WORKER_SLUGS = [
-  "first-aid",
-  "formation-collecte",
-  "fire-safety",
-  "ppe-usage",
-  "company-policy",
-  "emergency-procedures",
-] as const;
-
-async function main() {
+/** Wipe employee-linked data in FK-safe order. Preserves admin, courses, lessons, quizzes, categories. */
+async function wipeEmployeeData(): Promise<void> {
+  // 1–7 EPI (children before parents)
+  await prisma.epiReceptionConfirmation.deleteMany();
+  await prisma.epiComplianceProof.deleteMany();
+  await prisma.epiFeedback.deleteMany();
+  await prisma.epiRenewalRequest.deleteMany();
+  await prisma.epiReplacementRequest.deleteMany();
+  await prisma.epiIssuance.deleteMany();
+  await prisma.epiProfile.deleteMany();
+  // 8–9 EPI catalog (recreated by seed)
+  await prisma.epiCategoryDefaultItem.deleteMany();
+  await prisma.epiItemCatalog.deleteMany();
+  // 10–12 training progress
+  await prisma.lessonQuizAttempt.deleteMany();
   await prisma.quizAttempt.deleteMany();
   await prisma.lessonProgress.deleteMany();
-  await prisma.userBadge.deleteMany();
+  // 13–16 gamification / notifications
   await prisma.certificate.deleteMany();
-  await prisma.quiz.deleteMany();
-  await prisma.course.deleteMany();
-  await prisma.user.deleteMany({ where: { role: "EMPLOYEE" } });
+  await prisma.userBadge.deleteMany();
+  await prisma.notification.deleteMany();
+  // 19 employees (admin preserved)
+  await prisma.user.deleteMany({ where: { role: Role.EMPLOYEE } });
+}
 
-  const uploadRoot = path.join(__dirname, "..", "uploads");
-  if (!fs.existsSync(uploadRoot)) fs.mkdirSync(uploadRoot, { recursive: true });
-  const placeholderPdf = path.join(uploadRoot, "placeholder.pdf");
-  if (!fs.existsSync(placeholderPdf)) {
-    const minimal = Buffer.from(
-      "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF",
-      "utf-8"
-    );
-    fs.writeFileSync(placeholderPdf, minimal);
+type EpiItemDef = {
+  code: string;
+  labelAr: string;
+  labelFr: string;
+  labelEn: string;
+  emoji: string;
+  lifespanDays: number;
+};
+
+const EPI_ITEMS: Record<string, EpiItemDef> = {
+  combinaison: {
+    code: "combinaison",
+    labelAr: "بدلة عمل كاملة",
+    labelFr: "Combinaison",
+    labelEn: "Coverall",
+    emoji: "🧑‍🏭",
+    lifespanDays: 365,
+  },
+  chaussures: {
+    code: "chaussures",
+    labelAr: "حذاء السلامة",
+    labelFr: "Chaussures de sécurité",
+    labelEn: "Safety Shoes",
+    emoji: "🥾",
+    lifespanDays: 365,
+  },
+  gants: {
+    code: "gants",
+    labelAr: "قفازات العمل",
+    labelFr: "Gants de travail",
+    labelEn: "Work Gloves",
+    emoji: "🧤",
+    lifespanDays: 90,
+  },
+  gants_renforces: {
+    code: "gants_renforces",
+    labelAr: "قفازات مقواة",
+    labelFr: "Gants renforcés",
+    labelEn: "Reinforced Gloves",
+    emoji: "🧤",
+    lifespanDays: 90,
+  },
+  casquette: {
+    code: "casquette",
+    labelAr: "قبعة",
+    labelFr: "Casquette",
+    labelEn: "Cap",
+    emoji: "🧢",
+    lifespanDays: 365,
+  },
+  veste_hv: {
+    code: "veste_hv",
+    labelAr: "سترة عاكسة عالية الرؤية",
+    labelFr: "Veste haute visibilité",
+    labelEn: "Hi-Vis Vest",
+    emoji: "🦺",
+    lifespanDays: 180,
+  },
+  masque: {
+    code: "masque",
+    labelAr: "قناع ضد الغبار",
+    labelFr: "Masque anti-poussière",
+    labelEn: "Dust Mask",
+    emoji: "😷",
+    lifespanDays: 30,
+  },
+  helmet_safety: {
+    code: "helmet_safety",
+    labelAr: "خوذة السلامة",
+    labelFr: "Casque de sécurité",
+    labelEn: "Safety Helmet",
+    emoji: "🪖",
+    lifespanDays: 365,
+  },
+  lunettes: {
+    code: "lunettes",
+    labelAr: "نظارات الحماية",
+    labelFr: "Lunettes de protection",
+    labelEn: "Safety Glasses",
+    emoji: "🥽",
+    lifespanDays: 180,
+  },
+  protection_auditive: {
+    code: "protection_auditive",
+    labelAr: "واقي الأذن",
+    labelFr: "Protection auditive",
+    labelEn: "Ear Protection",
+    emoji: "🎧",
+    lifespanDays: 180,
+  },
+  safety_belt: {
+    code: "safety_belt",
+    labelAr: "حزام السلامة",
+    labelFr: "Ceinture de sécurité",
+    labelEn: "Safety Belt",
+    emoji: "🔗",
+    lifespanDays: 365,
+  },
+};
+
+/** EPI item codes per category (role). */
+const ROLE_EPI_CODES: Record<string, string[]> = {
+  driver: ["combinaison", "chaussures", "gants", "casquette", "veste_hv", "masque"],
+  loader: [
+    "combinaison",
+    "chaussures",
+    "gants_renforces",
+    "helmet_safety",
+    "veste_hv",
+    "masque",
+    "protection_auditive",
+    "lunettes",
+  ],
+  maintenance: [
+    "combinaison",
+    "chaussures",
+    "gants_renforces",
+    "helmet_safety",
+    "lunettes",
+    "protection_auditive",
+    "masque",
+    "safety_belt",
+  ],
+  sweeper: ["combinaison", "chaussures", "gants", "masque", "veste_hv", "casquette"],
+  teamLeader: ["combinaison", "chaussures", "gants", "veste_hv", "casquette"],
+};
+
+const CATEGORY_DEFS = [
+  { code: "driver", idPrefix: "AV", name: { fr: "Chauffeur", en: "Driver", ar: "سائق" } },
+  { code: "loader", idPrefix: "AV", name: { fr: "Chargeur", en: "Loader", ar: "عامل شحن" } },
+  {
+    code: "maintenance",
+    idPrefix: "AV",
+    name: { fr: "Agent de Maintenance", en: "Maintenance Agent", ar: "عون الصيانة" },
+  },
+  { code: "sweeper", idPrefix: "AV", name: { fr: "Balayeur", en: "Sweeper", ar: "عامل نظافة" } },
+  {
+    code: "teamLeader",
+    idPrefix: "AV",
+    name: { fr: "Chef d'équipe", en: "Team Leader", ar: "رئيس فريق" },
+  },
+] as const;
+
+type EmployeeSeed = {
+  employeeId: string;
+  name: string;
+  categoryCode: (typeof CATEGORY_DEFS)[number]["code"];
+  lang: Lang;
+  shirtSize: string;
+  pantsSize: string;
+  shoeSize: string;
+  gloveSize: string;
+  vestSize: string;
+};
+
+const EMPLOYEES: EmployeeSeed[] = [
+  {
+    employeeId: "AV000001",
+    name: "يوسف العلوي",
+    categoryCode: "driver",
+    lang: Lang.AR,
+    shirtSize: "L",
+    pantsSize: "42",
+    shoeSize: "42",
+    gloveSize: "M",
+    vestSize: "M",
+  },
+  {
+    employeeId: "AV000002",
+    name: "كريم بنعلي",
+    categoryCode: "loader",
+    lang: Lang.AR,
+    shirtSize: "XL",
+    pantsSize: "44",
+    shoeSize: "43",
+    gloveSize: "L",
+    vestSize: "L",
+  },
+  {
+    employeeId: "AV000003",
+    name: "أمين الراشدي",
+    categoryCode: "maintenance",
+    lang: Lang.AR,
+    shirtSize: "M",
+    pantsSize: "40",
+    shoeSize: "41",
+    gloveSize: "M",
+    vestSize: "M",
+  },
+  {
+    employeeId: "AV000004",
+    name: "سعيد المنصوري",
+    categoryCode: "sweeper",
+    lang: Lang.FR,
+    shirtSize: "L",
+    pantsSize: "42",
+    shoeSize: "42",
+    gloveSize: "L",
+    vestSize: "L",
+  },
+  {
+    employeeId: "AV000005",
+    name: "هشام التازي",
+    categoryCode: "teamLeader",
+    lang: Lang.AR,
+    shirtSize: "XL",
+    pantsSize: "44",
+    shoeSize: "44",
+    gloveSize: "XL",
+    vestSize: "XL",
+  },
+];
+
+async function ensureCategories(): Promise<Map<string, string>> {
+  const categoryIdByCode = new Map<string, string>();
+  for (const c of CATEGORY_DEFS) {
+    const row = await prisma.category.upsert({
+      where: { code: c.code },
+      create: { code: c.code, idPrefix: c.idPrefix, name: c.name as object },
+      update: { idPrefix: c.idPrefix, name: c.name as object },
+    });
+    categoryIdByCode.set(c.code, row.id);
   }
-  const pdfRel = "/uploads/placeholder.pdf";
+  return categoryIdByCode;
+}
+
+async function seedEpiCatalog(categoryIdByCode: Map<string, string>): Promise<void> {
+  const usedCodes = new Set<string>();
+  for (const codes of Object.values(ROLE_EPI_CODES)) {
+    for (const code of codes) usedCodes.add(code);
+  }
+
+  let sortOrder = 0;
+  for (const code of [...usedCodes].sort()) {
+    const item = EPI_ITEMS[code];
+    if (!item) continue;
+    await prisma.epiItemCatalog.create({
+      data: {
+        code: item.code,
+        labelAr: item.labelAr,
+        labelFr: item.labelFr,
+        labelEn: item.labelEn,
+        emoji: item.emoji,
+        defaultLifetimeDays: item.lifespanDays,
+        sortOrder: sortOrder++,
+        active: true,
+      },
+    });
+  }
+
+  for (const [catCode, codes] of Object.entries(ROLE_EPI_CODES)) {
+    const categoryId = categoryIdByCode.get(catCode);
+    if (!categoryId) continue;
+    let order = 0;
+    for (const itemCode of codes) {
+      const item = EPI_ITEMS[itemCode];
+      if (!item) continue;
+      await prisma.epiCategoryDefaultItem.create({
+        data: {
+          categoryId,
+          itemCode,
+          required: true,
+          lifetimeDaysOverride: item.lifespanDays,
+          sortOrder: order++,
+        },
+      });
+    }
+  }
+}
+
+async function main() {
+  console.log("ℹ️  schema.prisma: no ActivityLog or AuditLog model (admin activity is derived from quiz/EPI tables).");
+  await printWipeCounts("BEFORE wipe");
+  console.log("🧹 Wiping employee + EPI data (preserving admin, courses, categories)…");
+  await wipeEmployeeData();
+  await printWipeCounts("AFTER wipe");
 
   const adminPass = await hashPassword("Admin@2026");
   await prisma.user.upsert({
@@ -109,7 +341,6 @@ async function main() {
       email: "admin@averda.ma",
       passwordHash: adminPass,
       role: Role.ADMIN,
-      group: UserGroup.DRIVER,
       avatarColor: "#6366F1",
       language: Lang.EN,
     },
@@ -121,413 +352,48 @@ async function main() {
   });
 
   const pinHash = await hashPin("1234");
+  const categoryIdByCode = await ensureCategories();
+  await seedEpiCatalog(categoryIdByCode);
 
-  const driverDefs: {
-    eid: string;
-    name: string;
-    lang: Lang;
-    pcts: readonly number[];
-  }[] = [
-    { eid: "AVR-DRV-001", name: "يوسف العلوي", lang: Lang.AR, pcts: [100, 100, 100, 100, 100, 40] },
-    { eid: "AVR-DRV-002", name: "كريم الإدريسي", lang: Lang.FR, pcts: [60, 60, 60, 60, 60, 60] },
-    { eid: "AVR-DRV-003", name: "أحد بنعلي", lang: Lang.AR, pcts: [100, 100, 100, 100, 100, 100] },
-    { eid: "AVR-DRV-004", name: "سارة المرابط", lang: Lang.EN, pcts: [100, 80, 0, 0, 0, 0] },
-    { eid: "AVR-DRV-005", name: "فاطمة الزهراء", lang: Lang.AR, pcts: [60, 0, 0, 0, 0, 0] },
-  ];
+  const avatarPalette = ["#2563EB", "#10B981", "#F59E0B", "#8B5CF6", "#EF4444"] as const;
 
-  const workerDefs: {
-    eid: string;
-    name: string;
-    lang: Lang;
-    pcts: readonly number[] | null;
-  }[] = [
-    { eid: "AVR-WRK-001", name: "محمد الحسني", lang: Lang.AR, pcts: [100, 100, 100, 100, 40, 40] },
-    { eid: "AVR-WRK-002", name: "نور الدين العمراني", lang: Lang.FR, pcts: [100, 100, 100, 100, 100, 100] },
-    { eid: "AVR-WRK-003", name: "إيمان بوعزة", lang: Lang.AR, pcts: [50, 50, 50, 50, 50, 50] },
-    { eid: "AVR-WRK-004", name: "رشيد الطاهري", lang: Lang.EN, pcts: [20, 20, 20, 20, 20, 20] },
-    { eid: "AVR-WRK-005", name: "لمياء الشرقاوي", lang: Lang.AR, pcts: null },
-  ];
+  for (let i = 0; i < EMPLOYEES.length; i++) {
+    const e = EMPLOYEES[i]!;
+    const categoryId = categoryIdByCode.get(e.categoryCode)!;
 
-  const userIdByEid = new Map<string, string>();
-
-  for (const d of driverDefs) {
-    const u = await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
-        employeeId: d.eid,
-        name: d.name,
+        employeeId: e.employeeId,
+        name: e.name,
         pin: pinHash,
         role: Role.EMPLOYEE,
-        group: UserGroup.DRIVER,
-        avatarColor: "#10B981",
-        language: d.lang,
+        categoryId,
+        avatarColor: avatarPalette[i % avatarPalette.length]!,
+        language: e.lang,
+        isActive: true,
+        assessmentCompleted: false,
+        assessmentScore: null,
+        hsseqCourseRequired: true,
       },
     });
-    userIdByEid.set(d.eid, u.id);
-  }
-  for (const w of workerDefs) {
-    const u = await prisma.user.create({
+
+    await prisma.epiProfile.create({
       data: {
-        employeeId: w.eid,
-        name: w.name,
-        pin: pinHash,
-        role: Role.EMPLOYEE,
-        group: UserGroup.WORKER,
-        avatarColor: "#F59E0B",
-        language: w.lang,
-      },
-    });
-    userIdByEid.set(w.eid, u.id);
-  }
-
-  const courseDefs = [
-    {
-      slug: "first-aid",
-      order: 1,
-      icon: "⛑️",
-      cover: "from-red-500 to-rose-600",
-      target: [UserGroup.DRIVER, UserGroup.WORKER] as UserGroup[],
-      title: {
-        ar: "الإسعافات الأولية",
-        fr: "Premiers secours",
-        en: "First Aid",
-      },
-      desc: {
-        ar: "مبادئ الإسعافات الأولية في مواقع العمل.",
-        fr: "Principes de premiers secours sur le terrain.",
-        en: "First aid principles in the field.",
-      },
-    },
-    {
-      slug: "fleet-safety",
-      order: 2,
-      icon: "🚛",
-      cover: "from-indigo-500 to-violet-600",
-      target: [UserGroup.DRIVER] as UserGroup[],
-      title: {
-        ar: "سلامة الأسطول",
-        fr: "Sécurité de la flotte",
-        en: "Fleet Safety",
-      },
-      desc: {
-        ar: "قيادة آمنة وصيانة المركبات.",
-        fr: "Conduite sûre et maintenance des véhicules.",
-        en: "Safe driving and vehicle maintenance.",
-      },
-    },
-    {
-      slug: "formation-collecte",
-      order: 3,
-      icon: "♻️",
-      cover: "from-emerald-500 to-teal-600",
-      target: [UserGroup.DRIVER, UserGroup.WORKER] as UserGroup[],
-      title: {
-        ar: "تكوين الجمع",
-        fr: "Formation collecte",
-        en: "Collection Training",
-      },
-      desc: {
-        ar: "إجراءات الجمع والفرز.",
-        fr: "Procédures de collecte et de tri.",
-        en: "Collection and sorting procedures.",
-      },
-    },
-    {
-      slug: "fire-safety",
-      order: 4,
-      icon: "🔥",
-      cover: "from-orange-500 to-red-600",
-      target: [UserGroup.DRIVER, UserGroup.WORKER] as UserGroup[],
-      title: {
-        ar: "السلامة من الحريق",
-        fr: "Sécurité incendie",
-        en: "Fire Safety",
-      },
-      desc: {
-        ar: "استخدام الطفايات والإخلاء.",
-        fr: "Extincteurs et évacuation.",
-        en: "Extinguishers and evacuation.",
-      },
-    },
-    {
-      slug: "ppe-usage",
-      order: 5,
-      icon: "⛑️",
-      cover: "from-amber-500 to-yellow-600",
-      target: [UserGroup.WORKER] as UserGroup[],
-      title: {
-        ar: "معدات الحماية الشخصية",
-        fr: "Équipements de protection",
-        en: "PPE Usage",
-      },
-      desc: {
-        ar: "ارتداء وصيانة معدات الحماية.",
-        fr: "Port et entretien des EPI.",
-        en: "Wearing and maintaining PPE.",
-      },
-    },
-    {
-      slug: "company-policy",
-      order: 6,
-      icon: "🏢",
-      cover: "from-slate-600 to-slate-800",
-      target: [UserGroup.DRIVER, UserGroup.WORKER] as UserGroup[],
-      title: {
-        ar: "سياسة الشركة",
-        fr: "Politique de l'entreprise",
-        en: "Company Policy",
-      },
-      desc: {
-        ar: "القواعد والالتزامات.",
-        fr: "Règles et engagements.",
-        en: "Rules and commitments.",
-      },
-    },
-    {
-      slug: "emergency-procedures",
-      order: 7,
-      icon: "🚨",
-      cover: "from-rose-500 to-pink-600",
-      target: [UserGroup.DRIVER, UserGroup.WORKER] as UserGroup[],
-      title: {
-        ar: "الإجراءات الطارئة",
-        fr: "Procédures d'urgence",
-        en: "Emergency Procedures",
-      },
-      desc: {
-        ar: "التصرف في الحوادث والطوارئ.",
-        fr: "Réaction face aux incidents.",
-        en: "Responding to incidents.",
-      },
-    },
-  ];
-
-  const courseBySlug = new Map<string, { id: string }>();
-
-  for (const c of courseDefs) {
-    const course = await prisma.course.create({
-      data: {
-        slug: c.slug,
-        title: c.title,
-        description: c.desc,
-        icon: c.icon,
-        coverColor: c.cover,
-        pdfUrl: pdfRel,
-        pdfPageCount: 10,
-        targetGroup: c.target,
-        order: c.order,
-        extractedText:
-          "مادة تدريبية باللغة العربية. تعليمات السلامة والوقاية في مواقع العمل.",
-      },
-    });
-    courseBySlug.set(c.slug, { id: course.id });
-    await prisma.quiz.create({
-      data: {
-        courseId: course.id,
-        questions: dummyQuiz() as object,
+        userId: user.id,
+        shirtSize: e.shirtSize,
+        pantsSize: e.pantsSize,
+        shoeSize: e.shoeSize,
+        gloveSize: e.gloveSize,
+        vestSize: e.vestSize,
       },
     });
   }
 
-  const badgeDefs = [
-    {
-      key: "first_step",
-      icon: "🎯",
-      title: { ar: "الخطوة الأولى", fr: "Premier pas", en: "First Step" },
-      description: {
-        ar: "أكمل أول درس.",
-        fr: "Première leçon terminée.",
-        en: "Completed your first lesson.",
-      },
-    },
-    {
-      key: "quiz_starter",
-      icon: "📝",
-      title: { ar: "بداية الاختبارات", fr: "Début des quiz", en: "Quiz Starter" },
-      description: {
-        ar: "قدّم أول اختبار.",
-        fr: "Premier quiz soumis.",
-        en: "Submitted your first quiz.",
-      },
-    },
-  ];
-
-  for (const b of badgeDefs) {
-    await prisma.badge.upsert({
-      where: { key: b.key },
-      create: {
-        key: b.key,
-        title: b.title,
-        description: b.description,
-        icon: b.icon,
-      },
-      update: { title: b.title, description: b.description, icon: b.icon },
-    });
-  }
-
-  async function upsertProgress(
-    userId: string,
-    courseId: string,
-    completionPct: number,
-    completedAt: Date | null
-  ) {
-    const isCompleted = completionPct >= 100;
-    const pagesRead = Math.min(10, Math.round((completionPct / 100) * 10));
-    await prisma.lessonProgress.create({
-      data: {
-        userId,
-        courseId,
-        pagesRead,
-        totalPages: 10,
-        completionPct,
-        isCompleted,
-        completedAt: isCompleted ? completedAt : null,
-        lastAccessedAt: completedAt ?? daysAgo(3),
-        timeSpentSecs: 200 + Math.round(completionPct * 3),
-      },
-    });
-  }
-
-  /** Completions this week: exactly AVR-DRV-003 — six courses finished in last 7 days */
-  const drv3Id = userIdByEid.get("AVR-DRV-003")!;
-  for (let i = 0; i < DRIVER_SLUGS.length; i++) {
-    const slug = DRIVER_SLUGS[i]!;
-    const cid = courseBySlug.get(slug)!.id;
-    await upsertProgress(drv3Id, cid, 100, daysAgo(6 - i));
-  }
-
-  /** Other drivers — completed lessons dated outside this week */
-  const oldComplete = daysAgo(45);
-
-  for (const d of driverDefs) {
-    if (d.eid === "AVR-DRV-003") continue;
-    const uid = userIdByEid.get(d.eid)!;
-    for (let i = 0; i < DRIVER_SLUGS.length; i++) {
-      const slug = DRIVER_SLUGS[i]!;
-      const pct = d.pcts[i] ?? 0;
-      const cid = courseBySlug.get(slug)!.id;
-      const done = pct >= 100;
-      await upsertProgress(uid, cid, pct, done ? oldComplete : null);
-    }
-  }
-
-  for (const w of workerDefs) {
-    if (w.pcts == null) continue;
-    const uid = userIdByEid.get(w.eid)!;
-    for (let i = 0; i < WORKER_SLUGS.length; i++) {
-      const slug = WORKER_SLUGS[i]!;
-      const pct = w.pcts[i] ?? 0;
-      const cid = courseBySlug.get(slug)!.id;
-      const done = pct >= 100;
-      await upsertProgress(uid, cid, pct, done ? oldComplete : null);
-    }
-  }
-
-  const quizId = async (slug: string) => {
-    const c = await prisma.course.findUnique({
-      where: { slug },
-      include: { quiz: true },
-    });
-    return c?.quiz?.id;
-  };
-
-  const qFirst = await quizId("first-aid");
-  const qFleet = await quizId("fleet-safety");
-  const qCollect = await quizId("formation-collecte");
-  const qFire = await quizId("fire-safety");
-  const qCompany = await quizId("company-policy");
-
-  type Att = {
-    eid: string;
-    quizId: string;
-    score: number;
-    passed: boolean;
-    daysAgo: number;
-  };
-
-  const answers = { "1": "A" };
-
-  const attempts: Att[] = [];
-
-  const add = (a: Att) => attempts.push(a);
-
-  if (qFirst && qFleet && qCollect && qFire) {
-    const u1 = "AVR-DRV-001";
-    add({ eid: u1, quizId: qFirst, score: 86, passed: true, daysAgo: 2 });
-    add({ eid: u1, quizId: qFleet, score: 90, passed: true, daysAgo: 5 });
-    add({ eid: u1, quizId: qCollect, score: 86, passed: true, daysAgo: 12 });
-    add({ eid: u1, quizId: qFire, score: 88, passed: true, daysAgo: 20 });
-
-    const u2 = "AVR-DRV-002";
-    add({ eid: u2, quizId: qFirst, score: 72, passed: true, daysAgo: 1 });
-    add({ eid: u2, quizId: qFleet, score: 72, passed: true, daysAgo: 8 });
-    add({ eid: u2, quizId: qCollect, score: 72, passed: true, daysAgo: 15 });
-    add({ eid: u2, quizId: qFire, score: 72, passed: true, daysAgo: 22 });
-
-    const u3 = "AVR-DRV-003";
-    add({ eid: u3, quizId: qFirst, score: 95, passed: true, daysAgo: 3 });
-    add({ eid: u3, quizId: qFleet, score: 95, passed: true, daysAgo: 9 });
-    add({ eid: u3, quizId: qCollect, score: 95, passed: true, daysAgo: 18 });
-    add({ eid: u3, quizId: qFire, score: 95, passed: true, daysAgo: 25 });
-
-    const u4 = "AVR-DRV-004";
-    add({ eid: u4, quizId: qFirst, score: 50, passed: false, daysAgo: 28 });
-    add({ eid: u4, quizId: qFirst, score: 55, passed: false, daysAgo: 24 });
-    add({ eid: u4, quizId: qFirst, score: 90, passed: true, daysAgo: 18 });
-  }
-
-  if (qFirst && qCollect && qFire && qCompany) {
-    const w1 = "AVR-WRK-001";
-    add({ eid: w1, quizId: qFirst, score: 78, passed: true, daysAgo: 4 });
-    add({ eid: w1, quizId: qCollect, score: 78, passed: true, daysAgo: 11 });
-    add({ eid: w1, quizId: qFire, score: 78, passed: true, daysAgo: 17 });
-    add({ eid: w1, quizId: qCompany, score: 78, passed: true, daysAgo: 26 });
-
-    const w2 = "AVR-WRK-002";
-    add({ eid: w2, quizId: qFirst, score: 91, passed: true, daysAgo: 6 });
-    add({ eid: w2, quizId: qCollect, score: 91, passed: true, daysAgo: 14 });
-    add({ eid: w2, quizId: qFire, score: 91, passed: true, daysAgo: 21 });
-
-    const w3 = "AVR-WRK-003";
-    add({ eid: w3, quizId: qFirst, score: 70, passed: true, daysAgo: 7 });
-    add({ eid: w3, quizId: qCollect, score: 70, passed: true, daysAgo: 16 });
-    add({ eid: w3, quizId: qFire, score: 70, passed: true, daysAgo: 23 });
-
-    const w4 = "AVR-WRK-004";
-    add({ eid: w4, quizId: qFirst, score: 48, passed: false, daysAgo: 27 });
-    add({ eid: w4, quizId: qFirst, score: 52, passed: false, daysAgo: 21 });
-    add({ eid: w4, quizId: qFirst, score: 80, passed: true, daysAgo: 14 });
-  }
-
-  for (const a of attempts) {
-    const uid = userIdByEid.get(a.eid);
-    if (!uid) continue;
-    const at = daysAgo(a.daysAgo);
-    await prisma.quizAttempt.create({
-      data: {
-        userId: uid,
-        quizId: a.quizId,
-        score: a.score,
-        answers: answers as object,
-        passed: a.passed,
-        timeSpent: 100 + (a.score % 40) * 2,
-        attemptedAt: at,
-      },
-    });
-  }
-
-  const b1 = await prisma.badge.findUnique({ where: { key: "quiz_starter" } });
-  const uid001 = userIdByEid.get("AVR-DRV-001");
-  if (b1 && uid001) {
-    await prisma.userBadge.create({
-      data: { userId: uid001, badgeId: b1.id },
-    });
-  }
-
-  const allScores = attempts.map((x) => x.score);
-  const avg = allScores.reduce((s, x) => s + x, 0) / allScores.length;
-  console.log(
-    `Seed completed. Demo checks — attempts: ${allScores.length}, avg score: ${avg.toFixed(2)} (dashboard rounds to ${Math.round(avg)})`
-  );
+  await printWipeCounts("AFTER seed (final)");
+  const courseCount = await prisma.course.count({ where: { isActive: true } });
+  console.log("✅ Seed completed");
+  console.log(`   activeCourses: ${courseCount} (queried from DB)`);
+  console.log("   Employee PIN: 1234 | Admin: admin@averda.ma / Admin@2026");
 }
 
 main()

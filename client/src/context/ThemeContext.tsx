@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
-export const THEME_STORAGE_KEY = "fleetlearn-theme";
+export const THEME_STORAGE_KEY = "averda-academy-theme";
 export type ThemeMode = "dark" | "light";
 
 /** Tailwind darkMode: "class" — only `dark` on <html>; light mode = class removed */

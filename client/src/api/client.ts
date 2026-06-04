@@ -26,8 +26,9 @@ export function clearTokens(): void {
 }
 
 client.interceptors.request.use((config) => {
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
+  const token = accessToken ?? localStorage.getItem("accessToken");
+  if (token) {
+    config.headers.set("Authorization", `Bearer ${token}`);
   }
   return config;
 });
@@ -49,7 +50,7 @@ client.interceptors.response.use(
           { refreshToken }
         );
         setTokens(data.accessToken, refreshToken);
-        original.headers.Authorization = `Bearer ${data.accessToken}`;
+        original.headers.set("Authorization", `Bearer ${data.accessToken}`);
         return client(original);
       } catch {
         clearTokens();

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Prisma } from "@prisma/client";
+import { resolveAnthropicApiKey } from "./integrationKeys.js";
 
 const MODEL = "claude-sonnet-4-20250514";
 
@@ -35,6 +36,7 @@ CRITICAL: Your previous response was not valid JSON. Output ONLY the raw JSON ar
 
 export type QuizQuestionJson = {
   id: number;
+  emoji?: string;
   difficulty: "easy" | "medium" | "hard";
   question: { ar: string; fr: string; en: string };
   options: {
@@ -47,9 +49,9 @@ export type QuizQuestionJson = {
   explanation: { ar: string; fr: string; en: string };
 };
 
-function getClient(): Anthropic {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
+async function getClient(): Promise<Anthropic> {
+  const key = await resolveAnthropicApiKey();
+  if (!key) throw new Error("ANTHROPIC_API_KEY is not configured");
   return new Anthropic({ apiKey: key });
 }
 
@@ -106,7 +108,7 @@ export async function generateQuizFromArabicText(
     );
   }
   const body = trimToTokenBudget(cleaned);
-  const client = getClient();
+  const client = await getClient();
   const userMessage = `Course material (Arabic):\n${body}\n\nGenerate the 10 quiz questions now.`;
 
   async function call(system: string): Promise<QuizQuestionJson[]> {
@@ -116,7 +118,7 @@ export async function generateQuizFromArabicText(
       system,
       messages: [{ role: "user", content: userMessage }],
     });
-    const textBlock = msg.content.find((b) => b.type === "text");
+    const textBlock = msg.content.find((b: { type: string }) => b.type === "text");
     if (!textBlock || textBlock.type !== "text") {
       throw new Error("Empty response from model");
     }
@@ -136,7 +138,7 @@ export async function generateQuizFromArabicText(
           },
         ],
       });
-      const tb = retry.content.find((b) => b.type === "text");
+      const tb = retry.content.find((b: { type: string }) => b.type === "text");
       if (!tb || tb.type !== "text") throw new Error("Empty retry response");
       const qs = parseJsonArray(tb.text);
       validateQuestions(qs);

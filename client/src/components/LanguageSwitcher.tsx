@@ -2,10 +2,10 @@ import { useTranslation } from "react-i18next";
 import { applyDocumentDirection } from "@/i18n/i18n";
 import type { SupportedLng } from "@/i18n/i18n";
 
-const langs: { code: SupportedLng; flag: string; label: string }[] = [
-  { code: "ar", flag: "🇲🇦", label: "AR" },
-  { code: "fr", flag: "🇫🇷", label: "FR" },
-  { code: "en", flag: "🇬🇧", label: "EN" },
+const langs: { code: SupportedLng; flagSrc: string; label: string }[] = [
+  { code: "ar", flagSrc: "/flags/ma.svg", label: "AR" },
+  { code: "fr", flagSrc: "/flags/fr.svg", label: "FR" },
+  { code: "en", flagSrc: "/flags/gb.svg", label: "EN" },
 ];
 
 export function LanguageSwitcher({
@@ -40,16 +40,16 @@ export function LanguageSwitcher({
             void i18n.changeLanguage(l.code);
             applyDocumentDirection(l.code);
           }}
-          className={`flex min-h-[52px] min-w-[52px] items-center justify-center rounded-md px-2 text-sm font-semibold transition ${
+          className={`flex min-h-[52px] min-w-[52px] items-center justify-center gap-1 rounded-md px-2 text-sm font-semibold transition ${
             i18n.language.startsWith(l.code)
-              ? "bg-accent-indigo text-white"
+              ? "bg-[#1e3a5f] text-white"
               : inactiveHover
           }`}
           aria-pressed={i18n.language.startsWith(l.code)}
           aria-label={l.label}
         >
-          <span className="text-lg me-1">{l.flag}</span>
-          {l.label}
+          <img src={l.flagSrc} width="20" height="14" alt="" className="h-3.5 w-5 shrink-0 rounded-[2px] object-cover" />
+          <span>{l.label}</span>
         </button>
       ))}
     </div>

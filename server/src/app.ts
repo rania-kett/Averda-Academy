@@ -8,33 +8,131 @@ import adminCoursesRouter from "./routes/adminCourses.js";
 import adminRouter from "./routes/admin.js";
 import authRouter from "./routes/auth.js";
 import coursesRouter from "./routes/courses.js";
+import lessonQuizRouter from "./routes/lessonQuiz.js";
 import quizRouter from "./routes/quiz.js";
 import userRouter from "./routes/user.js";
+import aiRouter from "./routes/ai.js";
 import { errorHandler, AppError } from "./middleware/errorHandler.js";
 import { ensureUploadDir } from "./middleware/upload.js";
+import fs from "fs";
+import epiRouter from "./routes/epi.js";   // near other imports           // near other app.use() calls
 
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads");
 ensureUploadDir(uploadDir);
+const epiProofsDir = path.join(uploadDir, "epi-proofs");
+if (!fs.existsSync(epiProofsDir)) {
+  fs.mkdirSync(epiProofsDir, { recursive: true });
+}
+const COURSES_DIR = path.join(process.cwd(), "client", "public", "courses");
+const bundledPlaceholder = path.join(__dirname, "../assets/placeholder.pdf");
+const uploadPlaceholder = path.join(uploadDir, "placeholder.pdf");
+if (fs.existsSync(bundledPlaceholder)) {
+  if (!fs.existsSync(uploadPlaceholder)) {
+    fs.copyFileSync(bundledPlaceholder, uploadPlaceholder);
+  } else if (fs.statSync(uploadPlaceholder).size === 0) {
+    fs.copyFileSync(bundledPlaceholder, uploadPlaceholder);
+  }
+}
 
 const app = express();
 const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
 
+app.use('/courses', (req, res) => {
+  try {
+    // Get the raw buffer representation to handle any encoding
+    const rawUrl = req.url ?? '/';
+    const queryStart = rawUrl.indexOf('?');
+    const rawPath = queryStart === -1 ? rawUrl : rawUrl.slice(0, queryStart);
+
+    // Keep decoding until stable
+    let decoded = rawPath;
+    let prev = '';
+    while (prev !== decoded) {
+      prev = decoded;
+      try { decoded = decodeURIComponent(decoded); } catch { break; }
+    }
+    decoded = decoded.replace(/^\//, '');
+
+    const filePath = path.join(COURSES_DIR, decoded);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found', path: filePath });
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('X-Frame-Options', 'ALLOWALL');
+    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Content-Disposition', 'inline');
+    fs.createReadStream(filePath).pipe(res);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false,
+    frameguard: false,
   })
 );
 app.use(
   cors({
-    origin: clientUrl,
+    origin: (origin, cb) => {
+      // Allow same-origin / non-browser requests
+      if (!origin) return cb(null, true);
+      if (origin === clientUrl) return cb(null, true);
+      // Dev: allow LAN access to Vite (so phones can use the app)
+      if (/^https?:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+):517\d{1,2}$/i.test(origin)) {
+        return cb(null, true);
+      }
+      return cb(null, false);
+    },
     credentials: true,
   })
 );
 app.use(express.json({ limit: "10mb" }));
+app.use("/api/epi", epiRouter); 
 app.use("/uploads", express.static(uploadDir));
+// Backward compatibility: some courses stored PDFs as `/uploads/<name>.pdf`.
+// If the file is no longer in the API uploads folder but exists under the Vite public
+// `client/public/courses/` structure, serve it from there so employees can see PDFs automatically.
+app.get("/uploads/:filename", (req, res, next) => {
+  try {
+    const filename = String(req.params.filename || "");
+    if (!filename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+      next();
+      return;
+    }
+
+    const absInUploads = path.join(uploadDir, filename);
+    if (fs.existsSync(absInUploads)) {
+      res.sendFile(absInUploads);
+      return;
+    }
+
+    const candidates = [
+      path.join(COURSES_DIR, filename),
+      path.join(COURSES_DIR, "Drivers", filename),
+      path.join(COURSES_DIR, "Sweepers", filename),
+      path.join(COURSES_DIR, "Collect-Crew", filename),
+    ];
+    const hit = candidates.find((p) => fs.existsSync(p));
+    if (hit) {
+      res.sendFile(hit);
+      return;
+    }
+
+    next();
+  } catch {
+    next();
+  }
+});
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
@@ -43,7 +141,9 @@ app.get("/health", (_req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/courses", coursesRouter);
 app.use("/api/quiz", quizRouter);
+app.use("/api/lesson-quiz", lessonQuizRouter);
 app.use("/api/user", userRouter);
+app.use("/api/ai", aiRouter);
 app.use("/api/admin/courses", adminCoursesRouter);
 app.use("/api/admin", adminRouter);
 
