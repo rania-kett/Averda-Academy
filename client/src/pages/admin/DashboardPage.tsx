@@ -1873,12 +1873,21 @@ function employeeCategoryKeyForCourse(roleLabel: string): CategoryKey | null {
   return null;
 }
 
-function enrolledCountForCourse(course: Course, employees: Employee[]): number {
-  if (!employees.length) return course.enrolledCount;
+/** Employees whose job category can take this course (by role assignment, not LMS enrollment). */
+function eligibleEmployeesForCourse(course: Course, employees: Employee[]): Employee[] {
+  if (!employees.length) return [];
   return employees.filter((emp) => {
     const key = employeeCategoryKeyForCourse(emp.role);
     return key != null && course.categoryCodes.includes(key);
-  }).length;
+  });
+}
+
+function formatCourseRolesLabel(categoryCodes: CategoryKey[]): string {
+  const labels = categoryCodes
+    .filter((code) => CATEGORIES[code])
+    .map((code) => CATEGORIES[code].label.ar);
+  if (!labels.length) return "—";
+  return labels.join(" · ");
 }
 
 function adminCourseCoverStyle(coverColor: string): CSSProperties | undefined {
@@ -1896,18 +1905,20 @@ function adminCourseCoverStyle(coverColor: string): CSSProperties | undefined {
 
 function AdminCourseCard({
   course,
-  enrolledCount,
+  eligibleEmployees,
   onEdit,
   onDelete,
 }: {
   course: Course;
-  enrolledCount: number;
+  eligibleEmployees: Employee[];
   onEdit: (course: Course) => void;
   onDelete: (course: Course) => void;
 }) {
+  const [showEligibleNames, setShowEligibleNames] = useState(false);
+  const eligibleCount = eligibleEmployees.length;
   const { icon, coverColor } = resolveCourseCardVisual(course.slug, course.icon, course.coverColor);
   const title = course.title.ar ?? course.title.en ?? course.title.fr ?? "—";
-  const description = (course.description?.ar ?? course.description?.en ?? course.description?.fr ?? "").trim();
+  const rolesLabel = formatCourseRolesLabel(course.categoryCodes);
   const coverStyle = adminCourseCoverStyle(coverColor);
   const completionPct = Math.round(course.completionRate);
   const completionColor = completionPct > 0 ? COLORS.green : COLORS.gray;
@@ -1924,8 +1935,8 @@ function AdminCourseCard({
   };
 
   return (
-    <div className={`${courseCardCellClassName} course-card-courses relative h-full`}>
-      <div className="group relative h-full">
+    <div className={`${courseCardCellClassName} course-card-courses relative h-full`} style={{ overflow: "visible" }}>
+      <div className="group relative h-full" style={{ overflow: "visible" }}>
         <div className="absolute end-3 top-3 z-30 flex items-center gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           <button
             type="button"
@@ -1973,25 +1984,6 @@ function AdminCourseCard({
               <h3 className="card-title" style={courseCardTitleStyle}>
                 {title}
               </h3>
-              {description ? (
-                <p
-                  className="card-description"
-                  style={{
-                    fontSize: 11,
-                    color: "#9ca3af",
-                    margin: "2px 0 4px 0",
-                    lineHeight: 1.4,
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    textAlign: "right",
-                  }}
-                >
-                  {description}
-                </p>
-              ) : null}
             </div>
             <div style={courseCardStatusStyle}>
               <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
@@ -2008,14 +2000,57 @@ function AdminCourseCard({
                 </span>
                 <span
                   className="card-badge"
-                  style={{
-                    ...adminBadgeBase,
-                    border: `1px solid ${COLORS.border}`,
-                    background: COLORS.grayLight,
-                    color: COLORS.text,
-                  }}
+                  style={{ ...adminBadgeBase, position: "relative", border: `1px solid ${COLORS.border}`, background: COLORS.grayLight, color: COLORS.text }}
+                  onMouseEnter={() => setShowEligibleNames(true)}
+                  onMouseLeave={() => setShowEligibleNames(false)}
+                  onFocus={() => setShowEligibleNames(true)}
+                  onBlur={() => setShowEligibleNames(false)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={
+                    eligibleCount > 0
+                      ? `الدور: ${rolesLabel} — ${eligibleEmployees.map((e) => e.name).join("، ")}`
+                      : `الدور: ${rolesLabel}`
+                  }
                 >
-                  👥 {enrolledCount} مسجل
+                  {rolesLabel}
+                  {showEligibleNames && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        bottom: "calc(100% + 6px)",
+                        right: 0,
+                        zIndex: 60,
+                        minWidth: 140,
+                        maxWidth: 260,
+                        padding: "8px 10px",
+                        borderRadius: 10,
+                        background: COLORS.navy,
+                        color: COLORS.white,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        lineHeight: 1.5,
+                        textAlign: "right",
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      {eligibleCount > 0 ? (
+                        eligibleEmployees.map((emp) => (
+                          <span key={emp.id} style={{ display: "block" }}>
+                            {emp.name}
+                            {emp.employeeCode ? (
+                              <span style={{ opacity: 0.75, marginInlineStart: 4 }} dir="ltr">
+                                {emp.employeeCode}
+                              </span>
+                            ) : null}
+                          </span>
+                        ))
+                      ) : (
+                        <span style={{ display: "block" }}>لا يوجد موظف مرتبط بهذه الدورة</span>
+                      )}
+                    </span>
+                  )}
                 </span>
                 <span
                   className="card-badge"
@@ -2109,7 +2144,7 @@ const CoursesView = ({
             <AdminCourseCard
               key={course.id}
               course={course}
-              enrolledCount={enrolledCountForCourse(course, employeesForEnrollment)}
+              eligibleEmployees={eligibleEmployeesForCourse(course, employeesForEnrollment)}
               onEdit={onEdit}
               onDelete={onDelete}
             />

@@ -35,6 +35,7 @@ import {
   saveIntegrationKey,
   testIntegrationKey,
 } from "../services/integrationKeys.js";
+import { countAdminVisibleCourses } from "../utils/adminCourseVisibility.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -1885,7 +1886,7 @@ router.get("/settings", async (_req, res, next) => {
     };
     const [employeeCount, courseCount, latestUser] = await Promise.all([
       prisma.user.count({ where: { role: "EMPLOYEE", isActive: true } }),
-      prisma.course.count({ where: { isActive: true } }),
+      countAdminVisibleCourses(),
       prisma.user.findFirst({
         where: { role: "EMPLOYEE" },
         orderBy: { createdAt: "desc" },

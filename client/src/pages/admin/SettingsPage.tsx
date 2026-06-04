@@ -264,7 +264,7 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
                 <dd className={`mt-1 text-base font-semibold ${adminStrong}`}>{data.appInfo.employeeCount}</dd>
               </div>
               <div>
-                <dt className="text-xs font-bold uppercase tracking-wide">عدد الدورات</dt>
+                <dt className="text-xs font-bold uppercase tracking-wide">عدد الدورات (المعروضة)</dt>
                 <dd className={`mt-1 text-base font-semibold ${adminStrong}`}>{data.appInfo.courseCount}</dd>
               </div>
               <div>
