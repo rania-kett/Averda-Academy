@@ -4,7 +4,7 @@
 
 <h1 align="center">Averda Academy</h1>
 <p align="center">
-  <strong>Plateforme de formation, d’onboarding et de sécurité professionnelle (EPI)</strong><br/>
+  <strong>Plateforme de formation d’onboarding et d'équipements de protection individuelle (EPI)</strong><br/>
   منصة التدريب والسلامة المهنية — Averda Morocco
 </p>
 
