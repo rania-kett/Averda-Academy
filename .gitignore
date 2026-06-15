@@ -46,3 +46,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Local assets / backups (do not commit)
+pictures/
+pictures.zip
+backup*.sql
+server/scripts/test-db.mjs
+

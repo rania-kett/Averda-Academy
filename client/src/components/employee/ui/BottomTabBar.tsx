@@ -39,7 +39,7 @@ export function BottomTabBar() {
 
   return (
     <nav
-      className="border-t border-white/10 bg-[#2E6198] px-3 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.20)]"
+      className="border-t border-white/10 bg-[#2E6198] px-3 pb-[env(safe-area-inset-bottom,0px)] pt-2 shadow-[0_-10px_30px_rgba(0,0,0,0.20)]"
       aria-label={t("nav.employeeBar")}
     >
       <div className="mx-auto flex max-w-lg items-stretch gap-2">

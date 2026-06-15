@@ -163,14 +163,15 @@ router.post(
         throw new AppError(400, "Assessment already passed");
       }
       const { correct, scorePercent } = scoreAssessment(answers);
-      const hsseqCourseRequired = false;
+      const passed = scorePercent >= 70;
+      const hsseqCourseRequired = passed ? false : user.hsseqCourseRequired;
       await prisma.user.update({
         where: { id: userId },
         data: {
           assessmentCompleted: true,
           assessmentScore: scorePercent,
           assessmentTakenAt: new Date(),
-          hsseqCourseRequired,
+          ...(passed ? { hsseqCourseRequired: false } : {}),
         },
       });
       res.json({

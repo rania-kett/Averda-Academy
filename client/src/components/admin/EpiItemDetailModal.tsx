@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import { Briefcase, X } from "lucide-react";
 import { CATEGORIES, type CategoryKey } from "@/config/categories";
 import type { DashboardEpiEmployee, DashboardEpiItem } from "@/utils/mapEpiSummaryToDashboard";
@@ -81,6 +81,15 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
     const photoUrl = item.photoProofPath?.trim() || null;
     return { item, employee, visualStatus, statusMeta, expiry, daysLeft, expiryTint, photoUrl };
   }, [selection]);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightbox]);
 
   if (!selection || !detail) return null;
 
@@ -266,7 +275,20 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
           role="dialog"
           aria-modal="true"
         >
-          <img src={lightbox} alt="إثبات الاستلام" className="max-h-[90vh] max-w-full rounded-xl object-contain" />
+          <button
+            type="button"
+            onClick={() => setLightbox(null)}
+            className="absolute end-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+            aria-label="إغلاق"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <img
+            src={lightbox}
+            alt="إثبات الاستلام"
+            className="max-h-[90vh] max-w-full rounded-xl object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       ) : null}
     </>

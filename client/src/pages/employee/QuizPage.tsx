@@ -523,27 +523,10 @@ export function QuizPage() {
     startTimeRef.current = Date.now();
   };
 
-  const resetToOriginalQuiz = () => {
-    setQuestions(initialQuestionsRef.current.length ? initialQuestionsRef.current : baseQuestions);
-    setAnswers({});
-    setStep(0);
-    setSelected(null);
-    setConfirmed(false);
-    setAttemptScore(0);
-    setResultRows([]);
-    setWrongQuestions([]);
-    cumulativeAnswersRef.current = {};
-    answerPermutationRef.current = {};
-    finishPayloadRef.current = null;
-    quizSavedRef.current = false;
-    setQuizSaved(false);
-    saveInFlightRef.current = false;
-    setIsRetryRound(false);
-    isRetryRoundRef.current = false;
-    setCelebrateToken(0);
-    setPhase("taking");
-    startTimeRef.current = Date.now();
+  const confirmLeaveQuiz = () => {
     setAbandonOpen(false);
+    if (courseId) navigate(`/courses/${courseId}`);
+    else navigate("/courses");
   };
 
   const requestLeaveQuiz = () => {
@@ -917,7 +900,7 @@ export function QuizPage() {
               </button>
               <button
                 type="button"
-                onClick={resetToOriginalQuiz}
+                onClick={confirmLeaveQuiz}
                 className="flex-1 min-h-[48px] rounded-xl bg-red-600 font-bold text-white"
               >
                 {lang === "ar" ? "تخلي" : lang === "fr" ? "Abandonner" : "Leave"}

@@ -69,6 +69,9 @@ interface Employee {
   status: "not_started" | "in_progress" | "completed";
   lastActivity: string;
   group?: string;
+  assessmentCompleted?: boolean;
+  assessmentScore?: number | null;
+  assessmentTakenAt?: string | null;
 }
 
 type EpiEmployee = DashboardEpiEmployee;
@@ -278,6 +281,9 @@ type ApiAdminEmployeeRow = {
   avgScore?: number;
   lastActiveAt?: string;
   status?: string;
+  assessmentCompleted?: boolean;
+  assessmentScore?: number | null;
+  assessmentTakenAt?: string | null;
 };
 
 /** Map GET /api/admin/employees → dashboard Employee rows. */
@@ -301,6 +307,9 @@ function mapApiEmployeesToDashboard(raw: unknown): Employee[] {
       totalCourses: u.coursesTotal ?? 0,
       status: (u.status as Employee["status"]) ?? "not_started",
       lastActivity: u.lastActiveAt ?? new Date().toISOString(),
+      assessmentCompleted: u.assessmentCompleted ?? false,
+      assessmentScore: u.assessmentScore ?? null,
+      assessmentTakenAt: u.assessmentTakenAt ?? null,
     };
   });
 }
@@ -324,6 +333,34 @@ function mapAdminStatsToDashboard(raw: unknown): DashboardStats | null {
   };
 }
 
+/** Human-readable Arabic labels for activity event types (never show raw snake_case). */
+function formatActivityDetail(
+  typeRaw: string,
+  type: ActivityLog["type"],
+  meta: Record<string, unknown>
+): string {
+  const courseTitle =
+    typeof meta.courseTitle === "object" && meta.courseTitle !== null
+      ? String((meta.courseTitle as { ar?: string }).ar ?? "")
+      : String(meta.courseTitle ?? "");
+  const itemTitle =
+    typeof meta.itemTitle === "object" && meta.itemTitle !== null
+      ? String((meta.itemTitle as { ar?: string }).ar ?? "")
+      : String(meta.itemTitle ?? "");
+
+  if (type === "quiz" || typeRaw.includes("quiz")) {
+    const label = courseTitle || "دورة";
+    return meta.score != null ? `اختبار: ${label} — ${meta.score}%` : `اختبار: ${label}`;
+  }
+  if (type === "epi" || typeRaw.includes("epi")) {
+    if (typeRaw.includes("replacement")) return `طلب استبدال معدات: ${itemTitle || "—"}`;
+    if (typeRaw.includes("reception")) return `تأكيد استلام معدات: ${itemTitle || "—"}`;
+    return `معدات: ${itemTitle || courseTitle || "نشاط EPI"}`;
+  }
+  if (typeRaw.includes("course")) return courseTitle ? `دورة: ${courseTitle}` : "تقدم في دورة";
+  return "نشاط على المنصة";
+}
+
 /** Map GET /api/admin/activity → activity feed rows. */
 function mapAdminActivityToDashboard(raw: unknown): ActivityLog[] {
   const events = Array.isArray(raw)
@@ -331,7 +368,9 @@ function mapAdminActivityToDashboard(raw: unknown): ActivityLog[] {
     : (raw as { events?: unknown[] })?.events;
   if (!Array.isArray(events) || !events.length) return [];
 
-  return events.map((row, index) => {
+  return events
+    .filter((row) => String((row as { type?: string }).type ?? "") !== "employee_created")
+    .map((row, index) => {
     const ev = row as {
       type?: string;
       at?: string;
@@ -345,20 +384,7 @@ function mapAdminActivityToDashboard(raw: unknown): ActivityLog[] {
     else if (typeRaw.includes("course")) type = "course";
 
     const meta = ev.meta ?? {};
-    const courseTitle =
-      typeof meta.courseTitle === "object" && meta.courseTitle !== null
-        ? String((meta.courseTitle as { ar?: string }).ar ?? "")
-        : String(meta.courseTitle ?? "");
-    const itemTitle =
-      typeof meta.itemTitle === "object" && meta.itemTitle !== null
-        ? String((meta.itemTitle as { ar?: string }).ar ?? "")
-        : "";
-    const detail =
-      type === "quiz"
-        ? `اختبار: ${courseTitle}${meta.score != null ? ` — ${meta.score}%` : ""}`
-        : type === "epi"
-          ? `معدات: ${itemTitle || courseTitle || typeRaw}`
-          : typeRaw;
+    const detail = formatActivityDetail(typeRaw, type, meta);
 
     return {
       id: `${typeRaw}-${ev.user?.id ?? index}-${ev.at ?? index}`,
@@ -813,7 +839,9 @@ const CompletionHeatmap = ({ data, employees, courses }: {
 const WeeklyChart = ({ data }: { data: WeeklyCompletion[] }) => {
   if (!data.length) return <EmptyState icon="📊" title="لا توجد بيانات بعد" subtitle="ستظهر البيانات بعد إكمال الموظفين للدورات" />;
 
-  const maxVal = Math.max(...data.map(d => d.count), 1);
+  const rawMax = Math.max(...data.map(d => d.count), 0);
+  const maxVal = rawMax === 0 ? 0 : rawMax;
+  const yTicks = maxVal === 0 ? [0] : [0, 0.25, 0.5, 0.75, 1];
   const w = 560, h = 160, padL = 32, padB = 28, padT = 10, padR = 10;
   const chartW = w - padL - padR;
   const chartH = h - padB - padT;
@@ -821,7 +849,7 @@ const WeeklyChart = ({ data }: { data: WeeklyCompletion[] }) => {
 
   const points = data.map((d, i) => ({
     x: padL + i * stepX,
-    y: padT + chartH - (d.count / maxVal) * chartH,
+    y: padT + chartH - (maxVal === 0 ? 0 : (d.count / maxVal) * chartH),
     ...d,
   }));
 
@@ -836,12 +864,13 @@ const WeeklyChart = ({ data }: { data: WeeklyCompletion[] }) => {
           <stop offset="100%" stopColor={COLORS.navy} stopOpacity="0.01" />
         </linearGradient>
       </defs>
-      {[0, 0.25, 0.5, 0.75, 1].map(t => {
-        const y = padT + chartH * (1 - t);
+      {yTicks.map(t => {
+        const y = maxVal === 0 ? padT + chartH : padT + chartH * (1 - t);
+        const label = maxVal === 0 ? 0 : Math.round(maxVal * t);
         return (
           <g key={t}>
             <line x1={padL} x2={w - padR} y1={y} y2={y} stroke={COLORS.border} strokeWidth={0.5} />
-            <text x={padL - 4} y={y + 4} textAnchor="end" fontSize={9} fill={COLORS.textMuted}>{Math.round(maxVal * t)}</text>
+            <text x={padL - 4} y={y + 4} textAnchor="end" fontSize={9} fill={COLORS.textMuted}>{label}</text>
           </g>
         );
       })}
@@ -917,14 +946,13 @@ function formatReminderSentAgo(sentAt: string): string {
   return "منذ قليل";
 }
 
-/** Proxy until dedicated assessment API — completedCourses > 0 ≈ assessment done. */
 function assessmentRowFromEmployee(emp: Employee) {
-  const completed = emp.completedCourses > 0;
+  const completed = emp.assessmentCompleted === true;
   return {
     completed,
     attemptCount: completed ? 1 : 0,
-    bestScore: completed && emp.avgScore > 0 ? emp.avgScore : null,
-    completedAt: completed ? emp.lastActivity : null,
+    bestScore: completed && emp.assessmentScore != null ? emp.assessmentScore : null,
+    completedAt: completed && emp.assessmentTakenAt ? emp.assessmentTakenAt : null,
   };
 }
 
@@ -971,7 +999,13 @@ const AssessmentQuizSection = ({
     try {
       await adminApi.notifyEmployee(emp.id, { type: "assessment" });
       onToast("✅ تم الإرسال — سيظهر التنبيه عند الموظف");
-    } catch {
+    } catch (e) {
+      if (isAxiosError(e) && e.response?.status === 429) {
+        onToast("⏳ تم إرسال تذكير مؤخرًا — حاول بعد 24 ساعة");
+        const iso = saveReminderSentAt(emp.id);
+        setReminderSentAt((prev) => ({ ...prev, [emp.id]: iso }));
+        return;
+      }
       onToast("❌ تعذر إرسال التذكير");
       return;
     }
@@ -1001,7 +1035,7 @@ const AssessmentQuizSection = ({
     <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
       <SectionHeader
         title="اختبار التقييم الأولي"
-        subtitle={`${stats.activeEmployees} موظفًا نشطًا — متابعة إكمال الاختبار التمهيدي`}
+        subtitle={`${stats.activeEmployees} موظفًا مسجلًا — متابعة إكمال الاختبار التمهيدي`}
       />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
         <span
@@ -2480,9 +2514,7 @@ export function DashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>(() => tabFromPath(location.pathname));
 
   useEffect(() => {
-    if (location.pathname === "/admin/settings") {
-      setActiveTab("settings");
-    }
+    setActiveTab(tabFromPath(location.pathname));
   }, [location.pathname]);
 
   const goToTab = useCallback(
@@ -3040,7 +3072,7 @@ export function DashboardPage() {
             {activeTab === "analytics" && !showWeeklyLoadError && (
               <AnalyticsView employees={employees} courses={courses} weekly={weekly} />
             )}
-            {activeTab === "settings" && <SettingsView embedded />}
+            {activeTab === "settings" && <SettingsView embedded onBack={() => goToTab("dashboard")} />}
           </>
         )}
       </main>

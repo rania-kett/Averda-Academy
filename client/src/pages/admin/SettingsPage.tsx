@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Copy, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowRight, Copy, Eye, EyeOff, Loader2 } from "lucide-react";
 import { adminApi } from "@/api/api";
 import { useToast } from "@/context/ToastContext";
 import { adminCard, adminMuted, adminStrong } from "@/components/admin/adminClasses";
@@ -198,7 +198,13 @@ function KeySection({
   );
 }
 
-export function SettingsView({ embedded = false }: { embedded?: boolean }) {
+export function SettingsView({
+  embedded = false,
+  onBack,
+}: {
+  embedded?: boolean;
+  onBack?: () => void;
+}) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<SettingsPayload | null>(null);
 
@@ -228,6 +234,16 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
 
   return (
     <div className="space-y-6" dir="rtl">
+      {embedded && onBack ? (
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-[#1e3a5f] shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-[#161B22] dark:text-white dark:hover:bg-[#1C2128]"
+        >
+          <ArrowRight className="h-4 w-4" aria-hidden />
+          العودة إلى لوحة التحكم
+        </button>
+      ) : null}
       {!embedded && (
         <div>
           <h1 className={`text-2xl font-bold ${adminStrong}`}>⚙️ الإعدادات</h1>

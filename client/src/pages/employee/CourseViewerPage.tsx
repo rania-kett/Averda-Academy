@@ -46,6 +46,11 @@ export function CourseViewerPage() {
   } | null>(null);
   const [lessonQuizOpen, setLessonQuizOpen] = useState(false);
   /** Same ordering as `QuizPage` / `coursesApi.list()` — next item in catalog, or back to list. */
+  const goBack = useCallback(() => {
+    if (window.history.length > 1) navigate(-1);
+    else navigate("/courses", { replace: true });
+  }, [navigate]);
+
   const continueLessonQuizToNextCourse = useCallback(async () => {
     setLessonQuizOpen(false);
     if (!id) {
@@ -230,11 +235,11 @@ export function CourseViewerPage() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") navigate(-1);
+      if (e.key === "Escape") goBack();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navigate]);
+  }, [goBack]);
 
   if (loading || !course) {
     return <div className="h-96 animate-pulse rounded-2xl bg-stone-200 dark:bg-white/5" />;
@@ -560,7 +565,7 @@ export function CourseViewerPage() {
       <div className="flex items-center justify-between" dir="ltr">
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E7E5E4] bg-white text-[#1C1917] shadow-sm transition hover:bg-slate-50 active:scale-[0.98] dark:border-[#44403C] dark:bg-[#292524] dark:text-white dark:hover:bg-white/10"
           aria-label={lang === "ar" ? "رجوع" : lang === "fr" ? "Retour" : "Back"}
         >

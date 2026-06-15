@@ -51,6 +51,8 @@ export function EmployeeLayout() {
     dy: 0,
     pid: null,
   });
+  const fabDragMoved = useRef(false);
+  const fabDragStart = useRef({ x: 0, y: 0 });
   const [fabDragging, setFabDragging] = useState(false);
 
   // Disable browser scroll restoration (we manage an internal scroll container).
@@ -72,6 +74,27 @@ export function EmployeeLayout() {
       return;
     }
     const el = mainRef.current;
+
+    const scrollToHashTarget = () => {
+      if (!hash || !el) return false;
+      const id = hash.replace(/^#/, "");
+      if (!id) return false;
+      const target = document.getElementById(id);
+      if (!target) return false;
+      const mainRect = el.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      el.scrollTop = Math.max(0, targetRect.top - mainRect.top + el.scrollTop - 16);
+      return true;
+    };
+
+    if (hash) {
+      scrollToHashTarget();
+      requestAnimationFrame(() => {
+        scrollToHashTarget();
+      });
+      return;
+    }
+
     // Cover any window-scroll cases too (some screens/modals use body scrolling).
     try {
       window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
@@ -95,7 +118,11 @@ export function EmployeeLayout() {
   const clampFab = useCallback((x: number, y: number) => {
     const size = 56;
     const topGuard = Math.max(8, Number.parseInt(getComputedStyle(document.documentElement).getPropertyValue("--app-navbar-h") || "64", 10) + 8);
-    const bottomGuard = 88 + 16; // bottom tab bar + margin
+    const tabbarH = Number.parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue("--app-tabbar-h") || "72",
+      10
+    );
+    const bottomGuard = tabbarH + 8;
     const maxX = Math.max(0, window.innerWidth - size - 8);
     const maxY = Math.max(0, window.innerHeight - size - bottomGuard);
     return {
@@ -103,6 +130,41 @@ export function EmployeeLayout() {
       y: Math.min(Math.max(topGuard, y), maxY),
     };
   }, []);
+
+  const persistFab = useCallback((p: { x: number; y: number }) => {
+    try {
+      localStorage.setItem("emergency_fab_pos_v1", JSON.stringify(p));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const finishFabDrag = useCallback(
+    (snap = true) => {
+      if (!dragging.current.active) return;
+      dragging.current.active = false;
+      setFabDragging(false);
+      if (!fabPos) return;
+      if (!snap) return;
+      const size = 56;
+      const snapLeft = fabPos.x < window.innerWidth / 2;
+      const snapped = clampFab(snapLeft ? 8 : window.innerWidth - size - 8, fabPos.y);
+      setFabPos(snapped);
+      persistFab(snapped);
+    },
+    [clampFab, fabPos, persistFab]
+  );
+
+  useEffect(() => {
+    if (!fabDragging) return;
+    const onPointerUp = () => finishFabDrag(true);
+    window.addEventListener("mouseup", onPointerUp);
+    window.addEventListener("touchend", onPointerUp);
+    return () => {
+      window.removeEventListener("mouseup", onPointerUp);
+      window.removeEventListener("touchend", onPointerUp);
+    };
+  }, [fabDragging, finishFabDrag]);
 
   useEffect(() => {
     const key = "emergency_fab_pos_v1";
@@ -134,13 +196,6 @@ export function EmployeeLayout() {
     return () => window.removeEventListener("resize", onResize);
   }, [clampFab]);
 
-  const persistFab = useCallback((p: { x: number; y: number }) => {
-    try {
-      localStorage.setItem("emergency_fab_pos_v1", JSON.stringify(p));
-    } catch {
-      /* ignore */
-    }
-  }, []);
   const [notifications, setNotifications] = useState<
     {
       id: string;
@@ -163,14 +218,45 @@ export function EmployeeLayout() {
     if (!seen) setShowOnboarding(true);
   }, [emp]);
 
+  // Pin the employee shell to the visible mobile viewport (avoids gap under bottom nav / clipped header).
   useEffect(() => {
-    // Lock background scroll while onboarding is open, without changing body positioning.
-    // Keeping body positioning stable avoids rare layout shifts where content can slip under the fixed navbar after closing.
-    document.body.style.overflow = showOnboarding ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
+    const root = document.documentElement;
+    const syncViewport = () => {
+      const vv = window.visualViewport;
+      if (vv) {
+        root.style.setProperty("--app-vv-top", `${Math.max(0, vv.offsetTop)}px`);
+        root.style.setProperty("--app-vv-height", `${vv.height}px`);
+      } else {
+        root.style.removeProperty("--app-vv-top");
+        root.style.removeProperty("--app-vv-height");
+      }
     };
-  }, [showOnboarding]);
+    syncViewport();
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", syncViewport);
+    vv?.addEventListener("scroll", syncViewport);
+    window.addEventListener("resize", syncViewport);
+    return () => {
+      vv?.removeEventListener("resize", syncViewport);
+      vv?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      root.style.removeProperty("--app-vv-top");
+      root.style.removeProperty("--app-vv-height");
+    };
+  }, []);
+
+  // Employee shell is position:fixed — prevent the document from scrolling behind it.
+  useEffect(() => {
+    const html = document.documentElement;
+    const prevHtml = html.style.overflow;
+    const prevBody = document.body.style.overflow;
+    html.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = prevHtml;
+      document.body.style.overflow = prevBody;
+    };
+  }, []);
 
   // Ensure we always have the latest category code from the backend,
   // so the role icon in the navbar matches the one used on the home page card.
@@ -415,9 +501,10 @@ export function EmployeeLayout() {
       const blob = `${title} ${msg}`.toLowerCase();
       if (blob.includes("badge") || blob.includes("شارة") || title.includes("🏅")) return "/badges";
       if (blob.includes("challenge") || blob.includes("défi") || blob.includes("تحد") || title.includes("🎯")) return "/challenges";
+      if (blob.includes("course") || blob.includes("formation") || blob.includes("دورة") || blob.includes("تدريب")) return "/courses";
       if (isAssessmentNotification(n)) return null;
       if (isEpiNotification(n)) return null;
-      return null;
+      return "/home";
     },
     [currentLng]
   );
@@ -425,12 +512,20 @@ export function EmployeeLayout() {
   const goToAssessmentFromNotification = useCallback(() => {
     setNotifOpen(false);
     setNotifMobileOpen(false);
+    const passed =
+      state.kind === "employee" &&
+      state.user.assessmentCompleted === true &&
+      (state.user.assessmentScore ?? 0) >= 70;
+    if (passed) {
+      nav("/courses");
+      return;
+    }
     if (pathname === "/home") {
       dispatchFocusAssessmentQuiz();
       return;
     }
     nav("/home", { state: { focusAssessment: true } satisfies FocusAssessmentLocationState });
-  }, [nav, pathname]);
+  }, [nav, pathname, state]);
 
   const goToEpiFromNotification = useCallback(() => {
     setNotifOpen(false);
@@ -468,13 +563,27 @@ export function EmployeeLayout() {
       setNotifOpen(false);
       setNotifMobileOpen(false);
       const to = notificationTarget(n);
-      if (to) nav(to);
+      nav(to ?? "/home");
     },
     [goToAssessmentFromNotification, goToEpiFromNotification, nav, notificationTarget]
   );
 
+  const hideLayoutBack =
+    (pathname.startsWith("/courses/") && pathname !== "/courses") || pathname.startsWith("/quiz/");
+
+  const navigateBack = useCallback(() => {
+    if (window.history.length > 1) nav(-1);
+    else nav("/home");
+  }, [nav]);
+
   return (
-    <div className="relative flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#FAFAF7] font-employee text-[#1C1917] dark:bg-[#1C1917] dark:text-[#F5F5F4]">
+    <div
+      className="fixed left-0 right-0 z-0 flex min-h-0 flex-col overflow-hidden bg-[#FAFAF7] font-employee text-[#1C1917] dark:bg-[#1C1917] dark:text-[#F5F5F4]"
+      style={{
+        top: "var(--app-vv-top, 0px)",
+        height: "var(--app-vv-height, 100dvh)",
+      }}
+    >
       {showOnboarding && (
         <AverdaOnboarding
           userId={emp?.id || "guest"}
@@ -487,7 +596,7 @@ export function EmployeeLayout() {
         <header
           ref={headerRef}
           className="fixed top-0 left-0 right-0 z-50 border-b border-black/5 bg-white/95 backdrop-blur-md shadow-sm dark:border-[#30363D] dark:bg-[#0D1117]/90"
-          style={{ paddingTop: "env(safe-area-inset-top)" }}
+          style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
         >
           <div className="mx-auto w-full max-w-6xl px-3 sm:px-6 md:flex md:h-16 md:flex-nowrap md:items-center md:justify-between md:gap-4 md:px-6">
             {/* Mobile: simplified header (logo + avatar + bell + settings) */}
@@ -937,10 +1046,10 @@ export function EmployeeLayout() {
           data-employee-main-scroll
           className="mx-auto min-h-0 w-full max-w-6xl flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-5 touch-pan-y"
           style={{
-            paddingTop: "calc(var(--app-navbar-h, 64px) + var(--app-content-gap, 36px))",
-            scrollPaddingTop: "calc(var(--app-navbar-h, 64px) + var(--app-content-gap, 36px))",
-            paddingBottom: "calc(var(--app-tabbar-h, 88px) + 10px)",
-            scrollPaddingBottom: "calc(var(--app-tabbar-h, 88px) + 10px)",
+            paddingTop: "calc(var(--app-navbar-h, 64px) + var(--app-content-gap, 20px))",
+            scrollPaddingTop: "calc(var(--app-navbar-h, 64px) + var(--app-content-gap, 20px))",
+            paddingBottom: "var(--app-tabbar-h, 72px)",
+            scrollPaddingBottom: "var(--app-tabbar-h, 72px)",
           }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -948,14 +1057,11 @@ export function EmployeeLayout() {
         >
           {!showOnboarding && pathname !== "/home" && (
             <>
-              {pathname.startsWith("/courses/") && pathname !== "/courses" ? null : (
+              {!hideLayoutBack && (
                 <div className="mb-4 flex">
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.history.length > 1) nav(-1);
-                      else nav("/home");
-                    }}
+                    onClick={navigateBack}
                     className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-[#E7E5E4] bg-white text-[#1C1917] shadow-sm transition hover:bg-averda/10 active:scale-[0.97] dark:border-[#44403C] dark:bg-[#292524] dark:text-[#F5F5F4] dark:hover:bg-averda/20"
                     aria-label={t("common.back")}
                     style={{ direction: "ltr" }}
@@ -981,7 +1087,10 @@ export function EmployeeLayout() {
           ref={fabRef}
           type="button"
           onClick={() => {
-            if (dragging.current.active) return;
+            if (fabDragMoved.current) {
+              fabDragMoved.current = false;
+              return;
+            }
             setEmergencyOpen(true);
           }}
           // Touch (mobile)
@@ -990,6 +1099,8 @@ export function EmployeeLayout() {
             if (!btn) return;
             const t = e.touches[0];
             if (!t) return;
+            fabDragMoved.current = false;
+            fabDragStart.current = { x: t.clientX, y: t.clientY };
             dragging.current.active = true;
             setFabDragging(true);
             const rect = btn.getBoundingClientRect();
@@ -1000,23 +1111,19 @@ export function EmployeeLayout() {
             if (!dragging.current.active) return;
             const t = e.touches[0];
             if (!t) return;
+            const dx = t.clientX - fabDragStart.current.x;
+            const dy = t.clientY - fabDragStart.current.y;
+            if (Math.hypot(dx, dy) > 8) fabDragMoved.current = true;
             e.preventDefault();
             setFabPos(clampFab(t.clientX - dragging.current.dx, t.clientY - dragging.current.dy));
           }}
-          onTouchEnd={() => {
-            if (!dragging.current.active || !fabPos) return;
-            dragging.current.active = false;
-            setFabDragging(false);
-            const size = 56;
-            const snapLeft = fabPos.x < window.innerWidth / 2;
-            const snapped = clampFab(snapLeft ? 8 : window.innerWidth - size - 8, fabPos.y);
-            setFabPos(snapped);
-            persistFab(snapped);
-          }}
+          onTouchEnd={() => finishFabDrag(true)}
           // Mouse (desktop)
           onMouseDown={(e) => {
             const btn = fabRef.current;
             if (!btn) return;
+            fabDragMoved.current = false;
+            fabDragStart.current = { x: e.clientX, y: e.clientY };
             dragging.current.active = true;
             setFabDragging(true);
             const rect = btn.getBoundingClientRect();
@@ -1025,18 +1132,12 @@ export function EmployeeLayout() {
           }}
           onMouseMove={(e) => {
             if (!dragging.current.active) return;
+            const dx = e.clientX - fabDragStart.current.x;
+            const dy = e.clientY - fabDragStart.current.y;
+            if (Math.hypot(dx, dy) > 8) fabDragMoved.current = true;
             setFabPos(clampFab(e.clientX - dragging.current.dx, e.clientY - dragging.current.dy));
           }}
-          onMouseUp={() => {
-            if (!dragging.current.active || !fabPos) return;
-            dragging.current.active = false;
-            setFabDragging(false);
-            const size = 56;
-            const snapLeft = fabPos.x < window.innerWidth / 2;
-            const snapped = clampFab(snapLeft ? 8 : window.innerWidth - size - 8, fabPos.y);
-            setFabPos(snapped);
-            persistFab(snapped);
-          }}
+          onMouseUp={() => finishFabDrag(true)}
           className="fixed z-[290] grid h-14 w-14 place-items-center rounded-full bg-red-600 text-white shadow-xl active:scale-[0.97]"
           style={{
             left: fabPos.x,

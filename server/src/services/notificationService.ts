@@ -81,7 +81,26 @@ export function epiIssuanceNotificationContent(itemLabels: {
   };
 }
 
+const ASSESSMENT_REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+export async function findRecentAssessmentReminder(userId: string) {
+  const since = new Date(Date.now() - ASSESSMENT_REMINDER_COOLDOWN_MS);
+  const titleAr = assessmentReminderContent().title.ar;
+  return prisma.notification.findFirst({
+    where: {
+      userId,
+      createdAt: { gte: since },
+      title: { path: ["ar"], equals: titleAr },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 export async function sendAssessmentReminder(userId: string) {
+  const recent = await findRecentAssessmentReminder(userId);
+  if (recent) {
+    throw new AppError(429, "Assessment reminder already sent within the last 24 hours");
+  }
   const { title, message } = assessmentReminderContent();
   return createEmployeeNotification(userId, title, message);
 }

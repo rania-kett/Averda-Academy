@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { adminApi } from "@/api/api";
 import { useToast } from "@/context/ToastContext";
@@ -8,7 +8,7 @@ import { CATEGORY_ORDER, categoryKeyFromCode, getCategoryDefByCode, type Categor
 import { getColorFromEmoji } from "@/utils/getColorFromEmoji";
 
 type CoverColorMode = "auto" | "custom";
-import { PenLine, Trash2 } from "lucide-react";
+import { PenLine, Trash2, X } from "lucide-react";
 
 const btnSecondary =
   "rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-medium text-[#0F172A] shadow-sm hover:bg-slate-50 disabled:opacity-50 dark:border-transparent dark:bg-white/10 dark:text-white dark:shadow-none dark:hover:bg-white/15";
@@ -334,6 +334,20 @@ export function CoursesAdminPage() {
     isValidHexColor(coverColor) &&
     (editingId ? true : Boolean(file));
 
+  const closeForm = useCallback(() => {
+    setForm(false);
+    setEditingId(null);
+  }, []);
+
+  useEffect(() => {
+    if (!form) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeForm();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [form, closeForm]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between">
@@ -568,16 +582,34 @@ export function CoursesAdminPage() {
       </div>
 
       {form && (
-        <motion.form
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          onSubmit={(e) => void submit(e)}
-          dir={isAr ? "rtl" : "ltr"}
-          className="fixed inset-8 z-[90] overflow-y-auto rounded-2xl border border-[#E2E8F0] bg-white p-8 shadow-2xl dark:border-[#30363D] dark:bg-[#0D1117]"
-        >
-          <h2 className="mb-6 text-xl font-bold">
-            {editingId ? t("admin.courses.editTitle") || t("common.edit") : t("admin.courses.formTitle")}
-          </h2>
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" dir={isAr ? "rtl" : "ltr"}>
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50"
+            aria-label={t("common.close")}
+            onClick={closeForm}
+          />
+          <motion.form
+            initial={{ opacity: 0, y: 12, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            onSubmit={(e) => void submit(e)}
+            className="relative z-[1] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-2xl dark:border-[#30363D] dark:bg-[#0D1117]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#E2E8F0] px-6 py-4 dark:border-[#30363D]">
+              <h2 className="text-xl font-bold">
+                {editingId ? t("admin.courses.editTitle") || t("common.edit") : t("admin.courses.formTitle")}
+              </h2>
+              <button
+                type="button"
+                onClick={closeForm}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] text-[#374151] transition hover:bg-slate-50 dark:border-[#30363D] dark:text-white dark:hover:bg-white/10"
+                aria-label={t("common.close")}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-6">
           <div className="grid max-w-2xl gap-6">
             {/* معلومات الدورة */}
             <div className="rounded-2xl border border-admin-border bg-admin-input p-4 text-admin-fg">
@@ -883,14 +915,16 @@ export function CoursesAdminPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setForm(false)}
+                onClick={closeForm}
                 className="rounded-xl border border-admin-border bg-transparent px-6 py-3 text-sm font-extrabold text-[#0F172A] transition hover:bg-slate-50 dark:text-white dark:hover:bg-white/10"
               >
                 إلغاء
               </button>
             </div>
           </div>
-        </motion.form>
+            </div>
+          </motion.form>
+        </div>
       )}
     </div>
   );

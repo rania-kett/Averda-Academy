@@ -31,6 +31,7 @@
 11. [Commandes utiles](#commandes-utiles)
 12. [Dépannage](#dépannage)
 13. [Sécurité & bonnes pratiques](#sécurité--bonnes-pratiques)
+14. [Dernières améliorations](#dernières-améliorations)
 
 ---
 
@@ -55,6 +56,11 @@ L’interface est **multilingue** (arabe, français, anglais) avec support **RTL
 | EPI | Réception, demandes, photos | Émission, calendrier d’expiration |
 | Tableau de bord | Accueil, défis, badges | KPI, activité, analytics |
 | Paramètres | — | Clés API chiffrées en base |
+
+**Points forts récents :**
+- Interface **mobile** optimisée (en-tête, barre de navigation, zone de défilement via Visual Viewport API).
+- Navigation employé fiable (retour, fermeture des modales, quiz, notifications, FAB urgence).
+- Tableau de bord admin : filtres employés par groupe, rappels d’évaluation avec cooldown 24 h, alignement des données d’assessment.
 
 ---
 
@@ -134,7 +140,7 @@ docker run -d ^
   -e POSTGRES_USER=postgres ^
   -e POSTGRES_PASSWORD=postgres ^
   -e POSTGRES_DB=averda_academy ^
-  -p 5432:5432 ^
+  -p 5434:5432 ^
   postgres:16
 ```
 
@@ -170,7 +176,7 @@ Fichier : `server/.env` (ne jamais committer ce fichier).
 
 | Variable | Obligatoire | Description |
 |----------|-------------|-------------|
-| `DATABASE_URL` | Oui | Ex. `postgresql://postgres:postgres@127.0.0.1:5432/averda_academy` |
+| `DATABASE_URL` | Oui | Ex. `postgresql://postgres:postgres@127.0.0.1:5434/averda_academy` |
 | `JWT_SECRET` | Oui | Secret pour les tokens d’accès |
 | `JWT_REFRESH_SECRET` | Oui | Secret pour les refresh tokens |
 | `SETTINGS_SECRET` | Oui | Chiffrement AES des clés API en base |
@@ -184,7 +190,7 @@ Fichier : `server/.env` (ne jamais committer ce fichier).
 Exemple minimal :
 
 ```env
-DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/averda_academy"
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5434/averda_academy"
 JWT_SECRET="changez-moi-en-production"
 JWT_REFRESH_SECRET="changez-moi-aussi"
 SETTINGS_SECRET="secret-long-pour-chiffrement-settings"
@@ -320,8 +326,9 @@ Averda-Academy/
 | `EADDRINUSE` port 3001 | Arrêtez l’ancien processus Node ou fermez le terminal qui occupe le port. |
 | `ECONNREFUSED` / proxy Vite | Le serveur sur 3001 n’est pas démarré. |
 | Base de données inaccessible | `docker start averda-academy-db` puis vérifiez `DATABASE_URL`. |
-| Port 5432 déjà utilisé | Changez le mapping Docker (`-p 5433:5432`) et adaptez `DATABASE_URL`. |
+| Port 5432 déjà utilisé (PostgreSQL Windows) | Utilisez le port **5434** pour Docker (`-p 5434:5432`) et `DATABASE_URL` avec `:5434`. |
 | PDF des cours introuvable | Placez les PDF dans `client/public/courses/` (structure par rôle). |
+| En-tête coupé ou espace blanc sous la barre mobile | Utilisez un navigateur récent ; l’app gère `viewport-fit=cover` et la hauteur visible. Rechargez après `npm run dev`. |
 
 Test API rapide :
 
@@ -342,10 +349,24 @@ Réponse attendue : `{"ok":true}`
 
 ---
 
+## Dernières améliorations
+
+| Domaine | Détail |
+|---------|--------|
+| **Mobile (employé)** | Shell `position: fixed` calé sur le viewport visible ; safe areas iOS/Android ; défilement interne sans gap sous la barre du bas. |
+| **Navigation** | Retour cours/quiz avec repli vers `/courses` ; abandon quiz ; ancres `#badges` ; FAB urgence (tap vs glisser). |
+| **Admin dashboard** | Filtre groupe conducteur/ouvrier ; scores d’évaluation réels ; cooldown rappel assessment (HTTP 429) ; onglet paramètres synchronisé avec l’URL. |
+| **Modales admin** | Fermeture par fond, ✕, Échap (cours, EPI, paramètres). |
+| **Onboarding Averda** | Correction des arrière-plans sur la dernière étape (FR/EN). |
+| **Base de données** | Port Docker **5434** par défaut (évite conflit avec PostgreSQL Windows sur 5432). |
+
+---
+
 ## Dépôt & contribution
 
-- **Repository :** [https://github.com/rania-kett/Averda-Academy](https://github.com/rania-kett/Averda-Academy.git)
-- Projet privé Averda — usage interne formation & sécurité.
+- **Repository :** [https://github.com/rania-kett/Averda-Academy](https://github.com/rania-kett/Averda-Academy)
+- **Branche principale :** `main`
+- Projet Averda — formation & sécurité au travail (usage interne).
 
 ---
 

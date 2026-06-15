@@ -1,9 +1,5 @@
 /* Mobile-only course card layout — desktop (769px+) unchanged */
 @media (max-width: 768px) {
-  .home-page-container {
-    padding-top: 12px !important;
-  }
-
   .course-card-home {
     width: 200px !important;
     min-width: 200px !important;

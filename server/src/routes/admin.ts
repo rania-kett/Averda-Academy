@@ -302,13 +302,6 @@ router.get("/activity", async (req, res, next) => {
       },
     });
 
-    const employeesPromise = prisma.user.findMany({
-      take: limit,
-      orderBy: { createdAt: "desc" },
-      where: { role: "EMPLOYEE" },
-      select: { id: true, name: true, employeeId: true, createdAt: true },
-    });
-
     const receptionsPromise = (async () => {
       try {
         return await prisma.epiReceptionConfirmation.findMany({
@@ -345,12 +338,11 @@ router.get("/activity", async (req, res, next) => {
       }
     })();
 
-    const [attempts, lessonQuizAttempts, receptions, repl, employees] = await Promise.all([
+    const [attempts, lessonQuizAttempts, receptions, repl] = await Promise.all([
       attemptsPromise,
       lessonQuizAttemptsPromise,
       receptionsPromise,
       replPromise,
-      employeesPromise,
     ]);
 
     const events = [
@@ -402,12 +394,6 @@ router.get("/activity", async (req, res, next) => {
           reason: x.reason,
         },
       })),
-      ...employees.map((u) => ({
-        type: "employee_created" as const,
-        at: u.createdAt,
-        user: { id: u.id, name: u.name, employeeId: u.employeeId },
-        meta: {},
-      })),
     ]
       .sort((a, b) => b.at.getTime() - a.at.getTime())
       .slice(0, limit);
@@ -418,11 +404,40 @@ router.get("/activity", async (req, res, next) => {
   }
 });
 
+function employeeGroupFromCategoryCode(code: string | null | undefined): "DRIVER" | "WORKER" {
+  return code === "driver" ? "DRIVER" : "WORKER";
+}
+
+function applyEmployeeGroupRoleFilter(
+  where: Prisma.UserWhereInput,
+  groupOrRole: string | undefined
+): void {
+  const raw = (groupOrRole ?? "").trim();
+  if (!raw || raw.toUpperCase() === "ALL") return;
+
+  const upper = raw.toUpperCase();
+  if (upper === "DRIVER") {
+    where.category = { code: "driver" };
+    return;
+  }
+  if (upper === "WORKER") {
+    where.category = { code: { not: "driver" } };
+    return;
+  }
+
+  const categoryCode = categoryCodeFromEmployeeRole(raw);
+  if (categoryCode) {
+    where.category = { code: categoryCode };
+  }
+}
+
 router.get(
   "/employees",
   query("page").optional().isInt({ min: 1 }),
   query("search").optional(),
   query("categoryId").optional(),
+  query("group").optional(),
+  query("role").optional(),
   query("status")
     .optional()
     .isIn(["all", "not_started", "in_progress", "completed"]),
@@ -435,6 +450,8 @@ router.get(
       const skip = (page - 1) * take;
       const search = (q.search as string | undefined)?.trim();
       const categoryId = (q.categoryId as string | undefined)?.trim();
+      const groupFilter = (q.group as string | undefined)?.trim();
+      const roleFilter = (q.role as string | undefined)?.trim();
       const status = (q.status as string) || "all";
 
       const where: Prisma.UserWhereInput = {
@@ -448,6 +465,8 @@ router.get(
       }
       if (categoryId) {
         where.categoryId = categoryId;
+      } else {
+        applyEmployeeGroupRoleFilter(where, groupFilter || roleFilter);
       }
 
       const users = await prisma.user.findMany({
@@ -522,10 +541,14 @@ router.get(
           employeeId: u.employeeId,
           name: u.name,
           category: u.category,
+          group: employeeGroupFromCategoryCode(u.category?.code),
           language: u.language,
           avatarColor: u.avatarColor,
           isActive: u.isActive,
           createdAt: u.createdAt,
+          assessmentCompleted: u.assessmentCompleted,
+          assessmentScore: u.assessmentScore,
+          assessmentTakenAt: u.assessmentTakenAt,
           coursesDone: metrics.coursesDone,
           coursesTotal: metrics.coursesTotal,
           avgScore: avg,
@@ -1287,7 +1310,7 @@ router.patch("/epi/requests/:id/approve", param("id").isString(), async (req, re
     const vr = validationResult(req);
     if (!vr.isEmpty()) throw new AppError(400, "Invalid request");
 
-    const requestId = String(req.params.id ?? "");
+    const requestId = String(req.params?.id ?? "");
     if (!requestId) throw new AppError(400, "Invalid request");
 
     const existing = await prisma.epiRenewalRequest.findUnique({ where: { id: requestId } });
@@ -1331,7 +1354,7 @@ router.patch("/epi/requests/:id/reject", param("id").isString(), async (req, res
     const vr = validationResult(req);
     if (!vr.isEmpty()) throw new AppError(400, "Invalid request");
 
-    const requestId = String(req.params.id ?? "");
+    const requestId = String(req.params?.id ?? "");
     if (!requestId) throw new AppError(400, "Invalid request");
 
     const existing = await prisma.epiRenewalRequest.findUnique({ where: { id: requestId } });

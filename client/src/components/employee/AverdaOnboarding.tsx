@@ -203,6 +203,7 @@ export default function AverdaOnboarding({ userId, lang, onClose }: Props) {
   ];
 
   const total = 1 + t.slides.length + 1; // welcome + slides + values
+  const bgIndex = Math.min(step, backgrounds.length - 1);
 
   const finish = () => {
     localStorage.setItem(`averda_onboarding_seen_${userId}`, "true");
@@ -242,7 +243,7 @@ export default function AverdaOnboarding({ userId, lang, onClose }: Props) {
           transition={{ duration: 0.8 }}
           className="absolute inset-0 bg-cover bg-center"
           style={{
-            backgroundImage: `url(${backgrounds[step]}), ${gradientFallbacks[step]}`,
+            backgroundImage: `url(${backgrounds[bgIndex]}), ${gradientFallbacks[bgIndex]}`,
           }}
         />
 
