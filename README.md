@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="client/public/averda_logo.png" alt="Averda Academy" width="220" />
+</p>
+
 # 🟢 Averda Academy — Employee Onboarding & Safety Training Platform
 
 ![Tests](https://img.shields.io/badge/tests-145%2F145%20passing-brightgreen)
