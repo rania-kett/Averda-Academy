@@ -8,6 +8,7 @@ import { RotateCcw } from "lucide-react";
 import { Skeleton } from "@/components/employee/ui/Skeleton";
 import { RoleAvatar, roleAvatarKindFromCategoryCode } from "@/components/employee/ui/RoleAvatar";
 import { Card, Pill, SectionTitle } from "@/components/employee/ui/primitives";
+import { displayEmployeeName } from "@/utils/displayEmployeeName";
 import { CourseCard } from "@/components/CourseCard";
 import { CourseCardGrid } from "@/components/employee/CourseCardGrid";
 import { HomeDashboardCards, type HomeContinueCourse } from "@/components/employee/HomeDashboardCards";
@@ -121,11 +122,11 @@ export function HomePage() {
     };
   }, [refreshHome]);
 
+  const lang = i18n.language.startsWith("ar") ? "ar" : i18n.language.startsWith("fr") ? "fr" : "en";
   const name =
     state.kind === "employee" ? state.user.name : me?.user.name ?? "";
+  const displayName = displayEmployeeName(name, lang);
   const pct = me?.progress.overallCompletionPct ?? 0;
-
-  const lang = i18n.language.startsWith("ar") ? "ar" : i18n.language.startsWith("fr") ? "fr" : "en";
 
   const categoryLabel = useMemo(() => {
     const c = me?.user.category;
@@ -340,7 +341,7 @@ export function HomePage() {
     );
   }
 
-  const firstName = name.split(" ")[0] || name;
+  const firstName = displayName.split(" ")[0] || displayName;
   const pageDir = lang === "ar" ? "rtl" : "ltr";
 
   return (
@@ -470,7 +471,7 @@ export function HomePage() {
       <section className="space-y-4">
         <SectionTitle
           right={
-            <Link to="/courses" className="text-[13px] font-semibold text-averda active:opacity-90">
+            <Link to="/courses" className="see-all-link text-[14px] active:opacity-90">
               {t("employee.seeAll")}
             </Link>
           }
@@ -492,18 +493,16 @@ export function HomePage() {
       </section>
 
       {/* Badges (keep) */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="mt-3 text-lg font-extrabold text-[#1C1917] dark:text-[#F5F5F4]">
-            {t("employee.home.myBadges")}
-          </h2>
-          <Link
-            to="/badges"
-            className="min-h-[48px] rounded-xl px-3 py-3 text-sm font-semibold text-averda hover:bg-averda/10 active:scale-[0.97]"
-          >
-            {t("employee.home.seeAllBadges")}
-          </Link>
-        </div>
+      <section className="space-y-4">
+        <SectionTitle
+          right={
+            <Link to="/badges" className="see-all-link text-[14px] active:opacity-90">
+              {t("employee.home.seeAllBadges")}
+            </Link>
+          }
+        >
+          {t("employee.home.myBadges")}
+        </SectionTitle>
         <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
           {(me?.user.badges ?? []).slice(0, 6).map((ub) => (
             <motion.div

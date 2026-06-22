@@ -17,10 +17,14 @@
  * These likely already exist — just ensure they return the shape described in the types below.
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { SettingsView } from "@/pages/admin/SettingsPage";
-import { AlertCircle, Briefcase, Pencil, RefreshCw, Trash2, type LucideIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { AlertCircle, BarChart2, BookOpen, Briefcase, HardHat, Home, Pencil, RefreshCw, Settings, Trash2, Users, X, type LucideIcon } from "lucide-react";
+import { COLORS, SIDEBAR } from "@/components/admin/adminThemeTokens";
+import { LanguageSwitcherCompact } from "@/components/LanguageSwitcherCompact";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { useDashboardI18n, epiDisplayStatusLabel, epiStatusLabel, employeeStatusLabel, courseTitleForLang } from "@/pages/admin/dashboardI18n";
 import { CATEGORY_ORDER, CATEGORIES, categoryKeyFromCode, type CategoryKey } from "@/config/categories";
 import { adminApi } from "@/api/api";
 import client from "@/api/client";
@@ -38,12 +42,15 @@ import { resolveCourseCardVisual } from "@/data/courseSlugCardVisuals";
 import { AdminCourseFormModal, type AdminCourseFormEdit } from "@/components/admin/AdminCourseFormModal";
 import { IssueEpiModal, type IssueEpiEmployee } from "@/components/admin/IssueEpiModal";
 import { AdminExportDropdown } from "@/components/admin/AdminExportDropdown";
+import { AdminCategoryRoleSelect } from "@/components/admin/AdminCategoryRoleSelect";
+import { AdminEmployeeStatusSelect, type EmployeeStatusFilter } from "@/components/admin/AdminEmployeeStatusSelect";
 import { EpiExpiryCalendar } from "@/components/admin/EpiExpiryCalendar";
 import { EpiItemDetailModal } from "@/components/admin/EpiItemDetailModal";
 import { loadDashboardEpiEmployees } from "@/utils/loadDashboardEpiEmployees";
 import { getExpiryLabel } from "@/utils/epiExpiry";
 import { getDisplayStatus, getEmployeeEpiPillFlags, getStatusLabel } from "@/utils/epiStatus";
 import type { DashboardEpiEmployee, DashboardEpiItem } from "@/utils/mapEpiSummaryToDashboard";
+import { SettingsView } from "@/pages/admin/SettingsPage";
 import "@/pages/employee/courseCardsMobile.css";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
@@ -63,6 +70,7 @@ interface Employee {
   name: string;
   role: string;
   roleLabel: string;
+  categoryKey?: CategoryKey;
   avgScore: number;
   completedCourses: number;
   totalCourses: number;
@@ -72,6 +80,7 @@ interface Employee {
   assessmentCompleted?: boolean;
   assessmentScore?: number | null;
   assessmentTakenAt?: string | null;
+  isActive?: boolean;
 }
 
 type EpiEmployee = DashboardEpiEmployee;
@@ -90,10 +99,6 @@ interface Course {
   enrolledCount: number;
   isHsseqFoundation?: boolean;
   isActive?: boolean;
-}
-
-function courseTitleAr(c: Course): string {
-  return c.title.ar ?? c.title.en ?? c.title.fr ?? "—";
 }
 
 function toI18nRecord(
@@ -144,9 +149,7 @@ async function fetchApi<T>(path: string): Promise<T> {
       if (e.response) {
         throw new Error(`API error ${e.response.status}: ${path}`);
       }
-      throw new Error(
-        "تعذر الاتصال بالخادم — شغّل npm run dev من جذر المشروع (الخادم على المنفذ 3001)"
-      );
+      throw new Error("ADMIN_SERVER_UNREACHABLE");
     }
     throw e;
   }
@@ -157,6 +160,7 @@ async function fetchApi<T>(path: string): Promise<T> {
 type RefetchOptions = { silent?: boolean };
 
 function useApiData<T>(url: string, deps: unknown[] = []) {
+  const { t } = useTranslation();
   const [data, setData] = useState<T | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -175,7 +179,13 @@ function useApiData<T>(url: string, deps: unknown[] = []) {
       return true;
     } catch (e) {
       if (!silent) {
-        setError(e instanceof Error ? e.message : "خطأ في الاتصال");
+        const msg =
+          e instanceof Error && e.message === "ADMIN_SERVER_UNREACHABLE"
+            ? t("admin.page.errors.serverHint")
+            : e instanceof Error
+              ? e.message
+              : t("admin.page.errors.connection");
+        setError(msg);
       }
       return false;
     } finally {
@@ -190,8 +200,8 @@ function useApiData<T>(url: string, deps: unknown[] = []) {
   return { data, initialLoading, error, refetch: load };
 }
 
-function formatArUpdateTime(date: Date): string {
-  return date.toLocaleTimeString("ar-MA", { hour: "numeric", minute: "2-digit" });
+function formatUpdateTime(date: Date, locale: string): string {
+  return date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
 }
 
 type ApiAdminCourse = {
@@ -258,6 +268,10 @@ function filterCoursesForAdminDashboard(courses: Course[]): Course[] {
     .filter((c) => c.categoryCodes.length > 0);
 }
 
+function defaultCategoriesForCourseFilter(filter: "all" | CategoryKey): CategoryKey[] {
+  return filter === "all" ? [...CATEGORY_ORDER] : [filter];
+}
+
 function courseToFormEdit(course: Course): AdminCourseFormEdit {
   return {
     id: course.id,
@@ -268,6 +282,7 @@ function courseToFormEdit(course: Course): AdminCourseFormEdit {
     coverColor: course.coverColor,
     categoryCodes: course.categoryCodes,
     isActive: course.isActive,
+    hasQuiz: course.hasQuiz,
   };
 }
 
@@ -284,6 +299,7 @@ type ApiAdminEmployeeRow = {
   assessmentCompleted?: boolean;
   assessmentScore?: number | null;
   assessmentTakenAt?: string | null;
+  isActive?: boolean;
 };
 
 /** Map GET /api/admin/employees → dashboard Employee rows. */
@@ -302,6 +318,7 @@ function mapApiEmployeesToDashboard(raw: unknown): Employee[] {
       name: u.name,
       role: roleLabel,
       roleLabel,
+      categoryKey: catKey ?? undefined,
       avgScore: u.avgScore ?? 0,
       completedCourses: u.coursesDone ?? 0,
       totalCourses: u.coursesTotal ?? 0,
@@ -310,6 +327,7 @@ function mapApiEmployeesToDashboard(raw: unknown): Employee[] {
       assessmentCompleted: u.assessmentCompleted ?? false,
       assessmentScore: u.assessmentScore ?? null,
       assessmentTakenAt: u.assessmentTakenAt ?? null,
+      isActive: u.isActive ?? true,
     };
   });
 }
@@ -333,36 +351,47 @@ function mapAdminStatsToDashboard(raw: unknown): DashboardStats | null {
   };
 }
 
-/** Human-readable Arabic labels for activity event types (never show raw snake_case). */
+/** Human-readable activity labels (localized). */
 function formatActivityDetail(
   typeRaw: string,
   type: ActivityLog["type"],
-  meta: Record<string, unknown>
+  meta: Record<string, unknown>,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  lang: "ar" | "fr" | "en"
 ): string {
+  const titleObj = meta.courseTitle;
   const courseTitle =
-    typeof meta.courseTitle === "object" && meta.courseTitle !== null
-      ? String((meta.courseTitle as { ar?: string }).ar ?? "")
+    typeof titleObj === "object" && titleObj !== null
+      ? String((titleObj as Record<string, string>)[lang] ?? (titleObj as { ar?: string }).ar ?? "")
       : String(meta.courseTitle ?? "");
+  const itemObj = meta.itemTitle;
   const itemTitle =
-    typeof meta.itemTitle === "object" && meta.itemTitle !== null
-      ? String((meta.itemTitle as { ar?: string }).ar ?? "")
+    typeof itemObj === "object" && itemObj !== null
+      ? String((itemObj as Record<string, string>)[lang] ?? (itemObj as { ar?: string }).ar ?? "")
       : String(meta.itemTitle ?? "");
 
   if (type === "quiz" || typeRaw.includes("quiz")) {
-    const label = courseTitle || "دورة";
-    return meta.score != null ? `اختبار: ${label} — ${meta.score}%` : `اختبار: ${label}`;
+    const label = courseTitle || t("admin.page.activity.course");
+    return meta.score != null ? `${t("admin.quizResults.sectionTitle")}: ${label} — ${meta.score}%` : `${t("admin.quizResults.sectionTitle")}: ${label}`;
   }
   if (type === "epi" || typeRaw.includes("epi")) {
-    if (typeRaw.includes("replacement")) return `طلب استبدال معدات: ${itemTitle || "—"}`;
-    if (typeRaw.includes("reception")) return `تأكيد استلام معدات: ${itemTitle || "—"}`;
-    return `معدات: ${itemTitle || courseTitle || "نشاط EPI"}`;
+    const label = itemTitle || courseTitle || t("admin.page.activity.epiFallback");
+    return t("admin.page.activity.epi", { label });
   }
-  if (typeRaw.includes("course")) return courseTitle ? `دورة: ${courseTitle}` : "تقدم في دورة";
-  return "نشاط على المنصة";
+  if (typeRaw.includes("course")) {
+    return courseTitle
+      ? `${t("admin.page.activity.course")}: ${courseTitle}`
+      : t("admin.page.activity.courseProgress");
+  }
+  return t("admin.page.activity.platform");
 }
 
 /** Map GET /api/admin/activity → activity feed rows. */
-function mapAdminActivityToDashboard(raw: unknown): ActivityLog[] {
+function mapAdminActivityToDashboard(
+  raw: unknown,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  lang: "ar" | "fr" | "en"
+): ActivityLog[] {
   const events = Array.isArray(raw)
     ? raw
     : (raw as { events?: unknown[] })?.events;
@@ -384,7 +413,7 @@ function mapAdminActivityToDashboard(raw: unknown): ActivityLog[] {
     else if (typeRaw.includes("course")) type = "course";
 
     const meta = ev.meta ?? {};
-    const detail = formatActivityDetail(typeRaw, type, meta);
+    const detail = formatActivityDetail(typeRaw, type, meta, t, lang);
 
     return {
       id: `${typeRaw}-${ev.user?.id ?? index}-${ev.at ?? index}`,
@@ -414,34 +443,7 @@ const ADD_EMPLOYEE_ROLE_OPTIONS: { key: CategoryKey; emoji: string }[] = [
   { key: "maintenance", emoji: "🔧" },
 ];
 
-// ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
-
-const COLORS = {
-  navy: "#1e3a5f",
-  navyDark: "#152d4a",
-  navyLight: "#2a4f7e",
-  cream: "#f8f5ef",
-  accent: "#e8a020",
-  accentLight: "#fef3dc",
-  green: "#16a34a",
-  greenLight: "#dcfce7",
-  red: "#dc2626",
-  redLight: "#fee2e2",
-  orange: "#ea580c",
-  orangeLight: "#ffedd5",
-  blue: "#2563eb",
-  blueLight: "#dbeafe",
-  purple: "#4c1d95",
-  purpleLight: "#ede9fe",
-  gray: "#6b7280",
-  grayLight: "#f3f4f6",
-  border: "#e5e7eb",
-  white: "#ffffff",
-  text: "#111827",
-  textMuted: "#6b7280",
-};
-
-// ─── ROLE CONFIG (matches @/config/categories — same icons & colors as RoleAvatar) ─
+// ─── DESIGN TOKENS (see adminThemeTokens.ts — CSS variables in index.css) ───
 
 type RoleConfig = { label: string; color: string; bg: string; Icon: LucideIcon };
 
@@ -463,7 +465,7 @@ const ROLE_CONFIG: Record<string, RoleConfig> = {
 };
 
 function getRoleConfig(role: string): RoleConfig {
-  return ROLE_CONFIG[role] ?? { label: role, color: "#6B7280", bg: "#F9FAFB", Icon: Briefcase };
+  return ROLE_CONFIG[role] ?? { label: role, color: "#6B7280", bg: "var(--admin-surface-subtle)", Icon: Briefcase };
 }
 
 const RoleIcon = ({ role, size = 16, color }: { role: string; size?: number; color?: string }) => {
@@ -474,17 +476,19 @@ const RoleIcon = ({ role, size = 16, color }: { role: string; size?: number; col
 // ─── SMALL COMPONENTS ─────────────────────────────────────────────────────────
 
 const StatusBadge = ({ status }: { status: string }) => {
-  const map: Record<string, { label: string; color: string; bg: string }> = {
-    not_started: { label: "لم يبدأ", color: COLORS.gray, bg: COLORS.grayLight },
-    in_progress: { label: "قيد التقدم", color: COLORS.blue, bg: COLORS.blueLight },
-    completed: { label: "مكتمل", color: COLORS.green, bg: COLORS.greenLight },
-    needs_followup: { label: "يحتاج متابعة", color: COLORS.red, bg: COLORS.redLight },
-    pending: { label: "في الانتظار", color: COLORS.orange, bg: COLORS.orangeLight },
-    ok: { label: "جيد", color: COLORS.green, bg: COLORS.greenLight },
-    received: { label: "مستلم", color: COLORS.green, bg: COLORS.greenLight },
-    not_issued: { label: "لم يُسلم", color: COLORS.gray, bg: COLORS.grayLight },
+  const { t } = useTranslation();
+  const map: Record<string, { color: string; bg: string }> = {
+    not_started: { color: COLORS.gray, bg: COLORS.grayLight },
+    in_progress: { color: COLORS.blue, bg: COLORS.blueLight },
+    completed: { color: COLORS.green, bg: COLORS.greenLight },
+    needs_followup: { color: COLORS.red, bg: COLORS.redLight },
+    pending: { color: COLORS.orange, bg: COLORS.orangeLight },
+    ok: { color: COLORS.green, bg: COLORS.greenLight },
+    received: { color: COLORS.green, bg: COLORS.greenLight },
+    not_issued: { color: COLORS.gray, bg: COLORS.grayLight },
   };
-  const cfg = map[status] ?? { label: status, color: COLORS.gray, bg: COLORS.grayLight };
+  const cfg = map[status] ?? { color: COLORS.gray, bg: COLORS.grayLight };
+  const label = epiStatusLabel(t, status);
   return (
     <span style={{
       display: "inline-block",
@@ -495,7 +499,7 @@ const StatusBadge = ({ status }: { status: string }) => {
       color: cfg.color,
       background: cfg.bg,
     }}>
-      {cfg.label}
+      {label}
     </span>
   );
 };
@@ -529,17 +533,18 @@ const Avatar = ({ role, size = 36 }: { role: string; size?: number }) => {
 };
 
 function DataLoadError({ onRetry }: { onRetry?: () => void }) {
+  const { t } = useTranslation();
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-red-200 bg-red-50 p-8">
+    <div className="flex flex-col items-center justify-center rounded-xl border border-red-200 bg-red-50 p-8 dark:border-red-900/50 dark:bg-red-950/30">
       <AlertCircle className="mb-3 text-red-400" size={32} />
-      <p className="text-sm font-semibold text-red-700">تعذر تحميل البيانات</p>
-      <p className="mt-1 text-xs text-red-500">تأكد من تشغيل الخادم واتصال قاعدة البيانات</p>
+      <p className="text-sm font-semibold text-red-700 dark:text-red-300">{t("admin.page.errors.loadData")}</p>
+      <p className="mt-1 text-xs text-red-500 dark:text-red-400">{t("admin.page.errors.loadDataHint")}</p>
       <button
         type="button"
         onClick={() => (onRetry ? onRetry() : window.location.reload())}
         className="mt-3 rounded-lg bg-red-600 px-4 py-2 text-xs text-white transition-colors hover:bg-red-700"
       >
-        إعادة المحاولة
+        {t("admin.page.errors.retry")}
       </button>
     </div>
   );
@@ -574,8 +579,8 @@ const KpiCard = ({ label, value, unit = "", icon, color, trend }: {
     background: COLORS.white,
     borderRadius: 16,
     padding: "20px 24px",
-    borderLeft: `4px solid ${color}`,
-    boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+    borderInlineStart: `4px solid ${color}`,
+    boxShadow: COLORS.shadow,
     display: "flex", flexDirection: "column", gap: 8,
     transition: "transform 0.2s, box-shadow 0.2s",
   }}
@@ -612,7 +617,7 @@ const SectionHeader = ({ title, subtitle, action }: {
     {action && (
       <button onClick={action.onClick} style={{
         padding: "6px 14px", borderRadius: 8, border: `1.5px solid ${COLORS.navy}`,
-        background: "transparent", color: COLORS.navy, fontSize: 13, fontWeight: 600,
+        background: COLORS.btnBg, color: COLORS.brand, fontSize: 13, fontWeight: 600,
         cursor: "pointer",
       }}>
         {action.label}
@@ -627,7 +632,9 @@ const activityIcon: Record<string, string> = {
   epi: "🦺", quiz: "📝", course: "📖", login: "🔐",
 };
 
-const ActivityFeed = ({ items, employees }: { items: ActivityLog[]; employees: Employee[] }) => (
+const ActivityFeed = ({ items, employees }: { items: ActivityLog[]; employees: Employee[] }) => {
+  const { locale, nameOf } = useDashboardI18n();
+  return (
   <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
     {items.map((item, idx) => {
       const emp = employees.find(e => e.id === item.employeeId);
@@ -649,18 +656,19 @@ const ActivityFeed = ({ items, employees }: { items: ActivityLog[]; employees: E
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>
-            {item.employeeName}
+            {nameOf(item.employeeName)}
             <span style={{ fontWeight: 400, color: COLORS.textMuted }}> — {item.detail}</span>
           </div>
           <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 2 }}>
-            {new Date(item.timestamp).toLocaleString("ar-MA", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}
+            {new Date(item.timestamp).toLocaleString(locale, { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}
           </div>
         </div>
       </div>
       );
     })}
   </div>
-);
+  );
+};
 
 // ─── EPI STATUS OVERVIEW ──────────────────────────────────────────────────────
 
@@ -679,6 +687,7 @@ const EpiStatusBar = ({
   renewalRequestCount: number;
   extraRight?: ReactNode;
 }) => {
+  const { t } = useTranslation();
   const ok = employees.filter((e) =>
     getEmployeeEpiPillFlags(
       e.items.map((it) => ({
@@ -713,13 +722,13 @@ const EpiStatusBar = ({
     ).pending
   ).length;
 
-  const chips: { id: EpiStatusFilter; label: string; count: number; color: string; bg: string }[] = [
-    { id: "ok", label: "جاهزون ✅", count: ok, color: COLORS.green, bg: COLORS.greenLight },
-    { id: "needs_followup", label: "يحتاج متابعة ⚠️", count: followup, color: COLORS.red, bg: COLORS.redLight },
-    { id: "pending", label: "في الانتظار 🕐", count: pending, color: COLORS.orange, bg: COLORS.orangeLight },
+  const chips: { id: EpiStatusFilter; labelKey: string; count: number; color: string; bg: string }[] = [
+    { id: "ok", labelKey: "admin.page.epi.ready", count: ok, color: COLORS.green, bg: COLORS.greenLight },
+    { id: "needs_followup", labelKey: "admin.page.epi.needsFollowup", count: followup, color: COLORS.red, bg: COLORS.redLight },
+    { id: "pending", labelKey: "admin.page.epi.pending", count: pending, color: COLORS.orange, bg: COLORS.orangeLight },
     {
       id: "renewal_requests",
-      label: "طلبات التجديد 📋",
+      labelKey: "admin.page.epi.renewalRequests",
       count: renewalRequestCount,
       color: COLORS.purple,
       bg: COLORS.purpleLight,
@@ -751,7 +760,7 @@ const EpiStatusBar = ({
         style={chipButtonStyle(activeFilter === "all", COLORS.navy, COLORS.grayLight)}
       >
         <span style={{ fontSize: 18, fontWeight: 800 }}>{employees.length}</span>
-        <span>الكل</span>
+        <span>{t("admin.page.common.all")}</span>
       </button>
       {chips.map((s) => (
         <button
@@ -761,7 +770,7 @@ const EpiStatusBar = ({
           style={chipButtonStyle(activeFilter === s.id, s.color, s.bg)}
         >
           <span style={{ fontSize: 18, fontWeight: 800 }}>{s.count}</span>
-          <span>{s.label}</span>
+          <span>{t(s.labelKey)}</span>
         </button>
       ))}
       {extraRight ? <div style={{ marginInlineStart: "auto", display: "flex", alignItems: "center", gap: 10 }}>{extraRight}</div> : null}
@@ -776,13 +785,14 @@ const CompletionHeatmap = ({ data, employees, courses }: {
   employees: string[];
   courses: string[];
 }) => {
+  const { t } = useDashboardI18n();
   const cellSize = 28;
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ borderCollapse: "collapse", fontSize: 11 }}>
         <thead>
           <tr>
-            <th style={{ minWidth: 100, textAlign: "right", padding: "4px 8px", color: COLORS.textMuted, fontWeight: 600 }}>الموظف</th>
+            <th style={{ minWidth: 100, textAlign: "start", padding: "4px 8px", color: COLORS.textMuted, fontWeight: 600 }}>{t("admin.page.table.employee")}</th>
             {courses.map(c => (
               <th key={c} style={{
                 width: cellSize, padding: "4px 2px", color: COLORS.textMuted,
@@ -823,11 +833,11 @@ const CompletionHeatmap = ({ data, employees, courses }: {
       <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 12, color: COLORS.textMuted }}>
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <span style={{ width: 12, height: 12, borderRadius: 3, background: COLORS.navy, display: "inline-block" }} />
-          مكتمل
+          {t("admin.page.status.completed")}
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <span style={{ width: 12, height: 12, borderRadius: 3, background: COLORS.grayLight, display: "inline-block" }} />
-          لم يبدأ
+          {t("admin.page.status.notStarted")}
         </span>
       </div>
     </div>
@@ -837,7 +847,8 @@ const CompletionHeatmap = ({ data, employees, courses }: {
 // ─── WEEKLY CHART (vanilla SVG — no dependencies) ────────────────────────────
 
 const WeeklyChart = ({ data }: { data: WeeklyCompletion[] }) => {
-  if (!data.length) return <EmptyState icon="📊" title="لا توجد بيانات بعد" subtitle="ستظهر البيانات بعد إكمال الموظفين للدورات" />;
+  const { t, locale } = useDashboardI18n();
+  if (!data.length) return <EmptyState icon="📊" title={t("admin.page.analytics.noChartData")} subtitle={t("admin.page.analytics.noChartDataSub")} />;
 
   const rawMax = Math.max(...data.map(d => d.count), 0);
   const maxVal = rawMax === 0 ? 0 : rawMax;
@@ -881,7 +892,7 @@ const WeeklyChart = ({ data }: { data: WeeklyCompletion[] }) => {
           <circle cx={p.x} cy={p.y} r={4} fill={COLORS.white} stroke={COLORS.navy} strokeWidth={2} />
           {i % Math.max(1, Math.floor(data.length / 6)) === 0 && (
             <text x={p.x} y={h - 8} textAnchor="middle" fontSize={9} fill={COLORS.textMuted}>
-              {new Date(p.date).toLocaleDateString("ar-MA", { month: "short", day: "numeric" })}
+              {new Date(p.date).toLocaleDateString(locale, { month: "short", day: "numeric" })}
             </text>
           )}
         </g>
@@ -894,17 +905,18 @@ const WeeklyChart = ({ data }: { data: WeeklyCompletion[] }) => {
 
 type Tab = "dashboard" | "employees" | "epi" | "courses" | "analytics" | "settings";
 
-const NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
-  { id: "dashboard", label: "لوحة التحكم", icon: "🏠" },
-  { id: "employees", label: "الموظفون", icon: "👥" },
-  { id: "epi", label: "معدات", icon: "🦺" },
-  { id: "courses", label: "الدورات", icon: "📚" },
-  { id: "analytics", label: "التحليلات", icon: "📊" },
-  { id: "settings", label: "الإعدادات", icon: "⚙️" },
+const NAV_ITEMS: { id: Tab; labelKey: string; icon: LucideIcon }[] = [
+  { id: "dashboard", labelKey: "admin.nav.dashboard", icon: Home },
+  { id: "employees", labelKey: "admin.nav.employees", icon: Users },
+  { id: "epi", labelKey: "admin.nav.epi", icon: HardHat },
+  { id: "courses", labelKey: "admin.nav.courses", icon: BookOpen },
+  { id: "analytics", labelKey: "admin.nav.analytics", icon: BarChart2 },
+  { id: "settings", labelKey: "admin.nav.settings", icon: Settings },
 ];
 
 function tabFromPath(pathname: string): Tab {
-  return pathname === "/admin/settings" ? "settings" : "dashboard";
+  if (pathname.startsWith("/admin/settings")) return "settings";
+  return "dashboard";
 }
 
 // ─── VIEW COMPONENTS ──────────────────────────────────────────────────────────
@@ -938,12 +950,12 @@ function saveReminderSentAt(employeeId: string): string {
   return iso;
 }
 
-function formatReminderSentAgo(sentAt: string): string {
+function formatReminderSentAgo(sentAt: string, t: (k: string, o?: Record<string, unknown>) => string): string {
   const diffMinutes = (Date.now() - new Date(sentAt).getTime()) / 60000;
-  if (diffMinutes < 1) return "منذ قليل";
-  if (diffMinutes < 60) return `منذ ${Math.max(1, Math.floor(diffMinutes))} دقيقة`;
-  if (diffMinutes < 1440) return `منذ ${Math.max(1, Math.floor(diffMinutes / 60))} ساعة`;
-  return "منذ قليل";
+  if (diffMinutes < 1) return t("admin.page.assessment.justNow");
+  if (diffMinutes < 60) return t("admin.page.assessment.minutesAgo", { n: Math.max(1, Math.floor(diffMinutes)) });
+  if (diffMinutes < 1440) return t("admin.page.assessment.hoursAgo", { n: Math.max(1, Math.floor(diffMinutes / 60)) });
+  return t("admin.page.assessment.justNow");
 }
 
 function assessmentRowFromEmployee(emp: Employee) {
@@ -965,6 +977,7 @@ const AssessmentQuizSection = ({
   stats: DashboardStats;
   onToast: (msg: string) => void;
 }) => {
+  const { t, locale, nameOf, roleOf } = useDashboardI18n();
   const [reminderSentAt, setReminderSentAt] = useState<Record<string, string>>({});
   const [, setReminderTimeTick] = useState(0);
 
@@ -995,18 +1008,18 @@ const AssessmentQuizSection = ({
   const notStartedCount = Math.max(0, employees.length - completedCount);
 
   const sendReminder = async (emp: Employee) => {
-    if (!window.confirm(`هل تريد إرسال تذكير لـ ${emp.name}؟`)) return;
+    if (!window.confirm(t("admin.page.assessment.reminderConfirm", { name: nameOf(emp.name) }))) return;
     try {
       await adminApi.notifyEmployee(emp.id, { type: "assessment" });
-      onToast("✅ تم الإرسال — سيظهر التنبيه عند الموظف");
+      onToast(t("admin.page.assessment.reminderSent"));
     } catch (e) {
       if (isAxiosError(e) && e.response?.status === 429) {
-        onToast("⏳ تم إرسال تذكير مؤخرًا — حاول بعد 24 ساعة");
+        onToast(t("admin.page.assessment.reminderRecent"));
         const iso = saveReminderSentAt(emp.id);
         setReminderSentAt((prev) => ({ ...prev, [emp.id]: iso }));
         return;
       }
-      onToast("❌ تعذر إرسال التذكير");
+      onToast(t("admin.page.assessment.reminderFailed"));
       return;
     }
     const iso = saveReminderSentAt(emp.id);
@@ -1014,7 +1027,7 @@ const AssessmentQuizSection = ({
   };
 
   const thStyle: CSSProperties = {
-    textAlign: "right",
+    textAlign: "start",
     padding: "10px 12px",
     fontSize: 12,
     fontWeight: 700,
@@ -1032,10 +1045,10 @@ const AssessmentQuizSection = ({
   };
 
   return (
-    <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+    <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: COLORS.shadow }}>
       <SectionHeader
-        title="اختبار التقييم الأولي"
-        subtitle={`${stats.activeEmployees} موظفًا مسجلًا — متابعة إكمال الاختبار التمهيدي`}
+        title={t("admin.page.sections.assessmentQuiz")}
+        subtitle={t("admin.page.sections.assessmentQuizSub", { n: stats.activeEmployees })}
       />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
         <span
@@ -1051,7 +1064,7 @@ const AssessmentQuizSection = ({
             background: COLORS.greenLight,
           }}
         >
-          {completedCount} أكملوا الاختبار
+          {t("admin.page.sections.completedAssessment", { n: completedCount })}
         </span>
         <span
           style={{
@@ -1066,26 +1079,26 @@ const AssessmentQuizSection = ({
             background: COLORS.orangeLight,
           }}
         >
-          {notStartedCount} لم يبدأوا بعد
+          {t("admin.page.sections.notStartedAssessment", { n: notStartedCount })}
         </span>
       </div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
           <thead>
             <tr>
-              <th style={thStyle}>الموظف</th>
-              <th style={thStyle}>الحالة</th>
-              <th style={thStyle}>عدد المحاولات</th>
-              <th style={thStyle}>أفضل نتيجة</th>
-              <th style={thStyle}>تاريخ الإكمال</th>
-              <th style={thStyle}>إجراء</th>
+              <th style={thStyle}>{t("admin.page.table.employee")}</th>
+              <th style={thStyle}>{t("admin.page.table.status")}</th>
+              <th style={thStyle}>{t("admin.page.table.attempts")}</th>
+              <th style={thStyle}>{t("admin.page.table.bestScore")}</th>
+              <th style={thStyle}>{t("admin.page.table.completionDate")}</th>
+              <th style={thStyle}>{t("admin.page.table.action")}</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={6} style={{ ...tdStyle, textAlign: "center", color: COLORS.textMuted }}>
-                  لا يوجد موظفون لعرضهم
+                  {t("admin.page.table.noEmployees")}
                 </td>
               </tr>
             ) : (
@@ -1097,7 +1110,7 @@ const AssessmentQuizSection = ({
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <Avatar role={emp.role} size={36} />
                         <div>
-                          <div style={{ fontWeight: 700 }}>{emp.name}</div>
+                          <div style={{ fontWeight: 700 }}>{nameOf(emp.name)}</div>
                           <div
                             style={{
                               display: "flex",
@@ -1109,23 +1122,23 @@ const AssessmentQuizSection = ({
                             }}
                           >
                             <RoleIcon role={emp.role} size={13} />
-                            {emp.role}
+                            {roleOf(emp.role, emp.categoryKey)}
                           </div>
                         </div>
                       </div>
                     </td>
                     <td style={tdStyle}>
                       {completed ? (
-                        <span style={{ color: COLORS.green, fontWeight: 700 }}>أكمل ✅</span>
+                        <span style={{ color: COLORS.green, fontWeight: 700 }}>{t("admin.page.assessment.completed")} ✅</span>
                       ) : (
-                        <span style={{ color: COLORS.orange, fontWeight: 700 }}>لم يبدأ بعد ⏳</span>
+                        <span style={{ color: COLORS.orange, fontWeight: 700 }}>{t("admin.page.assessment.notStarted")} ⏳</span>
                       )}
                     </td>
                     <td style={tdStyle}>{attemptCount}</td>
                     <td style={tdStyle}>{bestScore != null ? `${bestScore}%` : "—"}</td>
                     <td style={tdStyle}>
                       {completedAt
-                        ? new Date(completedAt).toLocaleDateString("ar-MA", {
+                        ? new Date(completedAt).toLocaleDateString(locale, {
                             year: "numeric",
                             month: "short",
                             day: "numeric",
@@ -1140,7 +1153,7 @@ const AssessmentQuizSection = ({
                           <button
                             type="button"
                             disabled
-                            title="سيتم إعادة تفعيل الإرسال بعد 24 ساعة"
+                            title={t("admin.page.assessment.reminderCooldown")}
                             style={{
                               padding: "6px 12px",
                               borderRadius: 8,
@@ -1152,10 +1165,10 @@ const AssessmentQuizSection = ({
                               color: COLORS.white,
                             }}
                           >
-                            ✅ تم الإرسال
+                            ✅ {t("admin.page.assessment.sent")}
                           </button>
                           <span style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 600 }}>
-                            {formatReminderSentAgo(sentAt)}
+                            {formatReminderSentAgo(sentAt, t)}
                           </span>
                         </div>
                       ) : (
@@ -1173,7 +1186,7 @@ const AssessmentQuizSection = ({
                             color: COLORS.white,
                           }}
                         >
-                          إرسال تذكير 🔔
+                          {t("admin.page.assessment.sendReminder")} 🔔
                         </button>
                       )}
                     </td>
@@ -1198,53 +1211,54 @@ const DashboardView = ({
   weekly: WeeklyCompletion[];
   onToast: (msg: string) => void;
 }) => {
+  const { t, nameOf, roleOf } = useDashboardI18n();
   const topEmployee = [...employees].sort((a, b) => b.avgScore - a.avgScore)[0];
   const atRisk = employees.filter(e => e.avgScore < 70 && e.completedCourses > 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16 }}>
-        <KpiCard label="الموظفون النشطون" value={stats.activeEmployees} icon="👥" color={COLORS.navy} trend={{ direction: "up", label: `من ${stats.totalEmployees} موظف إجمالاً` }} />
-        <KpiCard label="دورات مكتملة (الأسبوع)" value={stats.completedCoursesThisWeek} icon="📚" color={COLORS.blue} trend={{ direction: stats.completedCoursesThisWeek > 0 ? "up" : "neutral", label: "هذا الأسبوع" }} />
-        <KpiCard label="متوسط نتائج الاختبارات" value={stats.avgQuizScore} unit="%" icon="🎯" color={stats.avgQuizScore >= 70 ? COLORS.green : stats.avgQuizScore > 0 ? COLORS.orange : COLORS.gray} trend={{ direction: stats.avgQuizScore >= 70 ? "up" : "neutral", label: "متوسط كل المحاولات" }} />
-        <KpiCard label="يحتاجون متابعة" value={stats.needsFollowUp === 0 ? "✓ لا يوجد" : stats.needsFollowUp} icon={stats.needsFollowUp === 0 ? "✅" : "⚠️"} color={stats.needsFollowUp === 0 ? COLORS.green : COLORS.red} trend={stats.needsFollowUp === 0 ? { direction: "up", label: "جميع الموظفين بخير" } : { direction: "down", label: "يحتاجون تدخلاً" }} />
+        <KpiCard label={t("admin.page.kpi.activeEmployees")} value={stats.activeEmployees} icon="👥" color={COLORS.navy} trend={{ direction: "up", label: t("admin.page.kpi.fromTotal", { n: stats.totalEmployees }) }} />
+        <KpiCard label={t("admin.page.kpi.completedWeek")} value={stats.completedCoursesThisWeek} icon="📚" color={COLORS.blue} trend={{ direction: stats.completedCoursesThisWeek > 0 ? "up" : "neutral", label: t("admin.page.kpi.thisWeek") }} />
+        <KpiCard label={t("admin.page.kpi.avgQuiz")} value={stats.avgQuizScore} unit="%" icon="🎯" color={stats.avgQuizScore >= 70 ? COLORS.green : stats.avgQuizScore > 0 ? COLORS.orange : COLORS.gray} trend={{ direction: stats.avgQuizScore >= 70 ? "up" : "neutral", label: t("admin.page.kpi.avgAllAttempts") }} />
+        <KpiCard label={t("admin.page.kpi.needsFollowup")} value={stats.needsFollowUp === 0 ? `✓ ${t("admin.page.kpi.none")}` : stats.needsFollowUp} icon={stats.needsFollowUp === 0 ? "✅" : "⚠️"} color={stats.needsFollowUp === 0 ? COLORS.green : COLORS.red} trend={stats.needsFollowUp === 0 ? { direction: "up", label: t("admin.page.kpi.allWell") } : { direction: "down", label: t("admin.page.kpi.needIntervention") }} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-        <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-          <SectionHeader title="سجل النشاط" subtitle="آخر الأحداث في الوقت الفعلي" />
-          {activity.length ? <ActivityFeed items={activity.slice(0, 8)} employees={employees} /> : <EmptyState icon="📋" title="لا يوجد نشاط بعد" />}
+        <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: COLORS.shadow }}>
+          <SectionHeader title={t("admin.page.sections.activityLog")} subtitle={t("admin.page.sections.activityLogSub")} />
+          {activity.length ? <ActivityFeed items={activity.slice(0, 8)} employees={employees} /> : <EmptyState icon="📋" title={t("admin.page.sections.noActivity")} />}
         </div>
-        <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-          <SectionHeader title="تنبيهات معدات EPI" subtitle="الموظفون الذين يحتاجون معدات" />
+        <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: COLORS.shadow }}>
+          <SectionHeader title={t("admin.page.sections.epiAlerts")} subtitle={t("admin.page.sections.epiAlertsSub")} />
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {epiEmployees.filter(e => e.statusSummary !== "ok").slice(0, 5).map(emp => (
               <div key={emp.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, background: COLORS.redLight, border: `1px solid ${COLORS.red}20` }}>
                 <Avatar role={emp.role} size={32} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>{emp.name}</div>
-                  <div style={{ fontSize: 11, color: COLORS.textMuted }}>{emp.role} • {emp.pendingRequests} طلب معلق</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>{nameOf(emp.name)}</div>
+                  <div style={{ fontSize: 11, color: COLORS.textMuted }}>{roleOf(emp.role, emp.categoryKey)} • {t("admin.page.sections.pendingRequest", { n: emp.pendingRequests })}</div>
                 </div>
                 <StatusBadge status="needs_followup" />
               </div>
             ))}
             {epiEmployees.filter(e => e.statusSummary !== "ok").length === 0 && (
-              <EmptyState icon="✅" title="جميع الموظفين جاهزون" subtitle="لا توجد معدات ناقصة" />
+              <EmptyState icon="✅" title={t("admin.page.sections.allEpiReady")} subtitle={t("admin.page.sections.noMissingEpi")} />
             )}
           </div>
         </div>
       </div>
 
-      <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-        <SectionHeader title="الإكمال الأسبوعي (8 أسابيع)" subtitle="عدد الدورات المكتملة أسبوعياً" />
+      <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: COLORS.shadow }}>
+        <SectionHeader title={t("admin.page.sections.weeklyCompletion")} subtitle={t("admin.page.sections.weeklyCompletionSub")} />
         <WeeklyChart data={weekly} />
       </div>
 
       <AssessmentQuizSection employees={employees} stats={stats} onToast={onToast} />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-        <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-          <SectionHeader title="الأفضل هذا الشهر" />
+        <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: COLORS.shadow }}>
+          <SectionHeader title={t("admin.page.sections.topPerformers")} />
           {topEmployee && topEmployee.avgScore > 0 ? (
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <div style={{ position: "relative" }}>
@@ -1252,30 +1266,30 @@ const DashboardView = ({
                 <span style={{ position: "absolute", top: -4, right: -4, fontSize: 20 }}>🏆</span>
               </div>
               <div>
-                <div style={{ fontSize: 17, fontWeight: 700, color: COLORS.text }}>{topEmployee.name}</div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: COLORS.text }}>{nameOf(topEmployee.name)}</div>
                 <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                   <RoleIcon role={topEmployee.role} size={16} />
-                  {topEmployee.role}
+                  {roleOf(topEmployee.role, topEmployee.categoryKey)}
                 </div>
                 <div style={{ display: "flex", gap: 16, fontSize: 13 }}>
                   <span style={{ color: COLORS.green, fontWeight: 700 }}>{topEmployee.avgScore}% ⭐</span>
-                  <span style={{ color: COLORS.textMuted }}>{topEmployee.completedCourses} دورات مكتملة</span>
+                  <span style={{ color: COLORS.textMuted }}>{t("admin.page.sections.coursesCompleted", { n: topEmployee.completedCourses })}</span>
                 </div>
               </div>
             </div>
           ) : (
-            <EmptyState icon="🏆" title="لا توجد بيانات بعد" subtitle="ستظهر بعد إكمال الاختبارات" />
+            <EmptyState icon="🏆" title={t("admin.page.sections.noDataYet")} subtitle={t("admin.page.sections.afterQuizzes")} />
           )}
         </div>
-        <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-          <SectionHeader title="موظفون معرضون للخطر" />
+        <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: COLORS.shadow }}>
+          <SectionHeader title={t("admin.page.sections.atRisk")} />
           {atRisk.length ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {atRisk.map(e => (
                 <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <Avatar role={e.role} size={32} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{e.name}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{nameOf(e.name)}</div>
                     <ProgressBar
                       value={e.avgScore}
                       max={100}
@@ -1286,7 +1300,7 @@ const DashboardView = ({
               ))}
             </div>
           ) : (
-            <EmptyState icon="✅" title="لا يوجد موظفون بحاجة لمتابعة" />
+            <EmptyState icon="✅" title={t("admin.page.sections.noAtRisk")} />
           )}
         </div>
       </div>
@@ -1295,13 +1309,13 @@ const DashboardView = ({
 };
 
 const EmployeesView = ({ employees, onSelect }: { employees: Employee[]; onSelect: (e: Employee) => void }) => {
+  const { t, locale, nameOf, roleOf, categoryLang } = useDashboardI18n();
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const roles = Array.from(new Set(employees.map(e => e.role)));
+  const [roleFilter, setRoleFilter] = useState<"all" | CategoryKey>("all");
+  const [statusFilter, setStatusFilter] = useState<EmployeeStatusFilter>("all");
   const filtered = employees.filter(e => {
     const matchSearch = e.name.includes(search) || e.id.includes(search);
-    const matchRole = roleFilter === "all" || e.role === roleFilter;
+    const matchRole = roleFilter === "all" || e.categoryKey === roleFilter;
     const matchStatus = statusFilter === "all" || e.status === statusFilter;
     return matchSearch && matchRole && matchStatus;
   });
@@ -1310,36 +1324,38 @@ const EmployeesView = ({ employees, onSelect }: { employees: Employee[]; onSelec
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
         {[
-          { label: "إجمالي الموظفين", val: employees.length, color: COLORS.navy },
-          { label: "قيد التقدم", val: employees.filter(e => e.status === "in_progress").length, color: COLORS.blue },
-          { label: "مكتملون", val: employees.filter(e => e.status === "completed").length, color: COLORS.green },
-          { label: "لم يبدأوا", val: employees.filter(e => e.status === "not_started").length, color: COLORS.gray },
+          { label: t("admin.page.employees.total"), val: employees.length, color: COLORS.navy },
+          { label: t("admin.page.employees.inProgress"), val: employees.filter(e => e.status === "in_progress").length, color: COLORS.blue },
+          { label: t("admin.page.employees.completed"), val: employees.filter(e => e.status === "completed").length, color: COLORS.green },
+          { label: t("admin.page.employees.notStarted"), val: employees.filter(e => e.status === "not_started").length, color: COLORS.gray },
         ].map(s => (
-          <div key={s.label} style={{ background: COLORS.white, borderRadius: 12, padding: "14px 16px", borderTop: `3px solid ${s.color}`, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+          <div key={s.label} style={{ background: COLORS.white, borderRadius: 12, padding: "14px 16px", borderTop: `3px solid ${s.color}`, boxShadow: COLORS.shadow }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.val}</div>
             <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <input placeholder="ابحث بالاسم أو المعرّف..." value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1, minWidth: 180, padding: "8px 14px", borderRadius: 8, border: `1.5px solid ${COLORS.border}`, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
-        <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: `1.5px solid ${COLORS.border}`, fontSize: 13, fontFamily: "inherit", background: COLORS.white }}>
-          <option value="all">كل الأدوار</option>
-          {roles.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: `1.5px solid ${COLORS.border}`, fontSize: 13, fontFamily: "inherit", background: COLORS.white }}>
-          <option value="all">كل الحالات</option>
-          <option value="not_started">لم يبدأ</option>
-          <option value="in_progress">قيد التقدم</option>
-          <option value="completed">مكتمل</option>
-        </select>
+        <input placeholder={t("admin.page.employees.searchPlaceholder")} value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1, minWidth: 180, padding: "8px 14px", borderRadius: 8, border: `1.5px solid ${COLORS.border}`, fontSize: 13, outline: "none", fontFamily: "inherit", background: COLORS.btnBg, color: COLORS.text }} />
+        <AdminCategoryRoleSelect
+          value={roleFilter}
+          onChange={setRoleFilter}
+          allLabel={t("admin.page.employees.allRoles")}
+          categoryLang={categoryLang}
+        />
+        <AdminEmployeeStatusSelect
+          value={statusFilter}
+          onChange={setStatusFilter}
+          allLabel={t("admin.page.employees.allStatuses")}
+          getLabel={(status) => employeeStatusLabel(t, status)}
+        />
       </div>
-      <div style={{ background: COLORS.white, borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+      <div style={{ background: COLORS.white, borderRadius: 16, overflow: "hidden", boxShadow: COLORS.shadow }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: COLORS.navy }}>
-              {["الموظف", "الدور", "التقدم", "متوسط النتيجة", "الحالة", "آخر نشاط", "إجراءات"].map(h => (
-                <th key={h} style={{ padding: "12px 16px", color: COLORS.white, fontSize: 13, fontWeight: 600, textAlign: "right" }}>{h}</th>
+              {[t("admin.page.table.employee"), t("admin.page.table.role"), t("admin.page.table.progress"), t("admin.page.table.avgScore"), t("admin.page.table.status"), t("admin.page.table.lastActive"), t("admin.page.table.actions")].map(h => (
+                <th key={h} style={{ padding: "12px 16px", color: COLORS.white, fontSize: 13, fontWeight: 600, textAlign: "start" }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -1355,10 +1371,10 @@ const EmployeesView = ({ employees, onSelect }: { employees: Employee[]; onSelec
                       <Avatar role={emp.role} size={34} />
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text }}>{emp.name}</div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text }}>{nameOf(emp.name)}</div>
                           {emp.totalCourses > 0 && emp.completedCourses >= emp.totalCourses && emp.avgScore >= 70 && (
                             <span
-                              title="لديه شهادة"
+                              title={t("admin.page.employees.hasCertificate")}
                               style={{
                                 display: "inline-flex",
                                 alignItems: "center",
@@ -1382,27 +1398,27 @@ const EmployeesView = ({ employees, onSelect }: { employees: Employee[]; onSelec
                   <td style={{ padding: "12px 16px" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600, color: role.color, background: role.bg }}>
                       <RoleIcon role={emp.role} size={14} />
-                      {emp.role}
+                      {roleOf(emp.role, emp.categoryKey)}
                     </span>
                   </td>
                   <td style={{ padding: "12px 16px", minWidth: 120 }}>
                     <ProgressBar value={emp.completedCourses} max={emp.totalCourses || 1} />
-                    <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>{emp.completedCourses}/{emp.totalCourses} دورة</div>
+                    <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>{t("admin.page.employees.courseCount", { completed: emp.completedCourses, total: emp.totalCourses })}</div>
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     <span style={{ fontSize: 15, fontWeight: 700, color: emp.avgScore >= 70 ? COLORS.green : emp.avgScore > 0 ? COLORS.orange : COLORS.gray }}>{emp.avgScore > 0 ? `${emp.avgScore}%` : "—"}</span>
                   </td>
                   <td style={{ padding: "12px 16px" }}><StatusBadge status={emp.status} /></td>
-                  <td style={{ padding: "12px 16px", fontSize: 12, color: COLORS.textMuted }}>{new Date(emp.lastActivity).toLocaleDateString("ar-MA")}</td>
+                  <td style={{ padding: "12px 16px", fontSize: 12, color: COLORS.textMuted }}>{new Date(emp.lastActivity).toLocaleDateString(locale)}</td>
                   <td style={{ padding: "12px 16px" }}>
-                    <button onClick={() => onSelect(emp)} style={{ padding: "5px 12px", borderRadius: 6, border: `1.5px solid ${COLORS.navy}`, background: "transparent", color: COLORS.navy, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>عرض</button>
+                    <button onClick={() => onSelect(emp)} style={{ padding: "5px 12px", borderRadius: 6, border: `1.5px solid ${COLORS.navy}`, background: COLORS.btnBg, color: COLORS.brand, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{t("admin.page.employees.view")}</button>
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-        {filtered.length === 0 && <EmptyState icon="🔍" title="لا توجد نتائج" subtitle="جرّب تغيير معايير البحث" />}
+        {filtered.length === 0 && <EmptyState icon="🔍" title={t("admin.page.employees.noResults")} subtitle={t("admin.page.employees.tryFilters")} />}
       </div>
     </div>
   );
@@ -1440,6 +1456,7 @@ const EpiView = ({
   /** Changes when parent refetches /api/admin/epi — reload renewal queue too. */
   syncToken: unknown;
 }) => {
+  const { t, locale, nameOf, roleOf, epiOf } = useDashboardI18n();
   const [search, setSearch] = useState("");
   const [pendingRequests, setPendingRequests] = useState<EpiRenewalRequestRow[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
@@ -1469,10 +1486,10 @@ const EpiView = ({
   }, [loadPendingRequests, syncToken]);
 
   const formatRequestDate = (iso: string) =>
-    new Date(iso).toLocaleDateString("ar-MA", { day: "numeric", month: "long", year: "numeric" });
+    new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
 
   const handleApprove = async (req: EpiRenewalRequestRow) => {
-    if (!window.confirm(`هل تريد الموافقة على طلب تجديد ${req.itemLabel} لـ ${req.employeeName}؟`)) return;
+    if (!window.confirm(t("admin.page.epi.approveConfirm", { item: req.itemLabel, name: nameOf(req.employeeName) }))) return;
     try {
       await adminApi.approveEpiRenewalRequest(req.id);
       setPendingRequests((prev) => {
@@ -1480,15 +1497,15 @@ const EpiView = ({
         onPendingCountChange(next.length);
         return next;
       });
-      onToast("✅ تمت الموافقة — سيتم إشعار الموظف");
+      onToast(t("admin.page.epi.approveOk"));
       onRefreshEmployees();
     } catch {
-      onToast("❌ فشل — حاول مرة أخرى");
+      onToast(t("admin.page.epi.actionFailed"));
     }
   };
 
   const handleReject = async (req: EpiRenewalRequestRow) => {
-    if (!window.confirm(`هل تريد رفض طلب ${req.itemLabel} لـ ${req.employeeName}؟`)) return;
+    if (!window.confirm(t("admin.page.epi.rejectConfirm", { item: req.itemLabel, name: nameOf(req.employeeName) }))) return;
     try {
       await adminApi.rejectEpiRenewalRequest(req.id);
       setPendingRequests((prev) => {
@@ -1496,10 +1513,10 @@ const EpiView = ({
         onPendingCountChange(next.length);
         return next;
       });
-      onToast("تم رفض الطلب");
+      onToast(t("admin.page.epi.rejectOk"));
       onRefreshEmployees();
     } catch {
-      onToast("❌ فشل — حاول مرة أخرى");
+      onToast(t("admin.page.epi.actionFailed"));
     }
   };
 
@@ -1534,19 +1551,19 @@ const EpiView = ({
 
   const emptyFilterMessage =
     statusFilter === "ok"
-      ? "لا يوجد موظفون جاهزون حالياً"
+      ? t("admin.page.epi.noReady")
       : statusFilter === "needs_followup"
-        ? "لا يوجد موظفون يحتاجون متابعة"
+        ? t("admin.page.epi.noFollowup")
         : statusFilter === "pending"
-          ? "لا يوجد موظفون في الانتظار"
-          : "لا توجد نتائج";
+          ? t("admin.page.epi.noPending")
+          : t("admin.page.epi.noResults");
 
   const renderRenewalCard = (req: EpiRenewalRequestRow) => (
     <div
       key={req.id}
       style={{
-        background: "#fff7ed",
-        border: "1px solid #f97316",
+        background: COLORS.orangeLight,
+        border: `1px solid ${COLORS.orange}`,
         borderRadius: 12,
         padding: "16px 18px",
       }}
@@ -1554,20 +1571,20 @@ const EpiView = ({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: 15, fontWeight: 800, color: COLORS.text }}>
           🦺 {req.itemLabel}{" "}
-          <span style={{ fontWeight: 600, color: COLORS.textMuted }}>{req.employeeName}</span>{" "}
+          <span style={{ fontWeight: 600, color: COLORS.textMuted }}>{nameOf(req.employeeName)}</span>{" "}
           <span style={{ fontSize: 13 }}>👷</span>
         </div>
         <div style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: 600 }}>{req.employeeRole}</div>
       </div>
       <div style={{ marginTop: 8, fontSize: 13, color: COLORS.text }}>
-        <strong>السبب:</strong> {req.reason}
+        <strong>{t("admin.page.epi.reason")}</strong> {req.reason}
       </div>
       <div style={{ marginTop: 4, fontSize: 12, color: COLORS.textMuted }}>
-        <strong>منذ:</strong> {formatRequestDate(req.createdAt)}
+        <strong>{t("admin.page.epi.since")}</strong> {formatRequestDate(req.createdAt)}
       </div>
       {req.note ? (
         <div style={{ marginTop: 6, fontSize: 13, color: COLORS.text, fontStyle: "italic" }}>
-          ملاحظة: &quot;{req.note}&quot;
+          {t("admin.page.epi.note")} &quot;{req.note}&quot;
         </div>
       ) : null}
       <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
@@ -1585,7 +1602,7 @@ const EpiView = ({
             cursor: "pointer",
           }}
         >
-          ✓ موافقة
+          ✓ {t("admin.page.epi.approve")}
         </button>
         <button
           type="button"
@@ -1601,7 +1618,7 @@ const EpiView = ({
             cursor: "pointer",
           }}
         >
-          ✗ رفض
+          ✗ {t("admin.page.epi.reject")}
         </button>
       </div>
     </div>
@@ -1611,10 +1628,10 @@ const EpiView = ({
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: COLORS.text }}>طلبات التجديد المعلقة</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: COLORS.text }}>{t("admin.page.epi.pendingRenewals")}</h2>
           {pendingRequests.length > 0 && (
             <span style={{ background: COLORS.red, color: COLORS.white, borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: 700 }}>
-              {pendingRequests.length} طلب جديد
+              {t("admin.page.epi.newRequests", { n: pendingRequests.length })}
             </span>
           )}
         </div>
@@ -1634,7 +1651,7 @@ const EpiView = ({
               fontFamily: "inherit",
             }}
           >
-            عرض الكل ({pendingRequests.length})
+            {t("admin.page.epi.viewAll", { n: pendingRequests.length })}
           </button>
         )}
         {isRenewalFilter && (
@@ -1645,20 +1662,20 @@ const EpiView = ({
               padding: "6px 14px",
               borderRadius: 8,
               border: `1px solid ${COLORS.border}`,
-              background: COLORS.white,
-              color: COLORS.navy,
+              background: COLORS.btnBg,
+              color: COLORS.brand,
               fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
               fontFamily: "inherit",
             }}
           >
-            ← العودة للموظفين
+            ← {t("admin.page.epi.backToEmployees")}
           </button>
         )}
       </div>
       {requestsLoading ? (
-        <div style={{ padding: 16, textAlign: "center", color: COLORS.textMuted, fontSize: 13 }}>جاري التحميل…</div>
+        <div style={{ padding: 16, textAlign: "center", color: COLORS.textMuted, fontSize: 13 }}>{t("admin.page.epi.loading")}</div>
       ) : displayedRenewals.length === 0 ? (
         <div
           style={{
@@ -1672,14 +1689,14 @@ const EpiView = ({
             color: COLORS.green,
           }}
         >
-          ✅ لا توجد طلبات تجديد معلقة
+          ✅ {t("admin.page.epi.noPendingRenewals")}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {displayedRenewals.map(renderRenewalCard)}
           {showViewAllLink && hiddenRenewalCount > 0 && (
             <div style={{ textAlign: "center", fontSize: 12, color: COLORS.textMuted, fontWeight: 600 }}>
-              +{hiddenRenewalCount} طلب إضافي — استخدم فلتر «طلبات التجديد» لعرض الكل
+              {t("admin.page.epi.moreRequests", { n: hiddenRenewalCount })}
             </div>
           )}
         </div>
@@ -1699,7 +1716,7 @@ const EpiView = ({
             type="button"
             onClick={() => setCalendarMode((v) => !v)}
             disabled={isRenewalFilter}
-            title={isRenewalFilter ? "التقويم غير متاح في تبويب طلبات التجديد" : "عرض التقويم"}
+            title={isRenewalFilter ? t("admin.page.epi.calendarDisabled") : t("admin.page.epi.showCalendar")}
             style={{
               display: "flex",
               alignItems: "center",
@@ -1719,7 +1736,7 @@ const EpiView = ({
               userSelect: "none",
             }}
           >
-            📅 تقويم
+            📅 {t("admin.page.epi.calendar")}
           </button>
         }
       />
@@ -1734,7 +1751,7 @@ const EpiView = ({
           ) : (
             <>
               <input
-                placeholder="ابحث بالاسم أو المعرّف..."
+                placeholder={t("admin.page.employees.searchPlaceholder")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 style={{
@@ -1776,7 +1793,7 @@ const EpiView = ({
                       cursor: "pointer",
                     }}
                   >
-                    عرض الجميع
+                    {t("admin.page.epi.showAll")}
                   </button>
                 )}
               </div>
@@ -1796,32 +1813,38 @@ const EpiView = ({
               const needsRenewal = itemDisplays.some((s) => s === "needs_renewal");
               const alertLevel = needsRenewal ? "danger" : hasPending ? "warning" : "ok";
               return (
-                <div key={emp.id} style={{ background: COLORS.white, borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", borderLeft: `4px solid ${alertLevel === "danger" ? COLORS.red : alertLevel === "warning" ? COLORS.orange : COLORS.green}` }}>
+                <div key={emp.id} style={{ background: COLORS.white, borderRadius: 16, overflow: "hidden", boxShadow: COLORS.shadow, borderInlineStart: `4px solid ${alertLevel === "danger" ? COLORS.red : alertLevel === "warning" ? COLORS.orange : COLORS.green}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", background: alertLevel === "danger" ? COLORS.redLight : alertLevel === "warning" ? COLORS.orangeLight : COLORS.greenLight }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <Avatar role={emp.role} size={40} />
                       <div>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text }}>{emp.name}</div>
-                        <div style={{ fontSize: 12, color: COLORS.textMuted }}>{emp.employeeCode} • {emp.role}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text }}>{nameOf(emp.name)}</div>
+                        <div style={{ fontSize: 12, color: COLORS.textMuted }}>{emp.employeeCode} • {roleOf(emp.role, emp.categoryKey)}</div>
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                       <div style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.navy }}>{receivedCount}/{totalCount}</div>
-                        <div style={{ fontSize: 11, color: COLORS.textMuted }}>معدات مستلمة</div>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.brand }}>{receivedCount}/{totalCount}</div>
+                        <div style={{ fontSize: 11, color: COLORS.textMuted }}>{t("admin.page.epi.receivedLabel")}</div>
                       </div>
-                      {emp.pendingRequests > 0 && <span style={{ background: COLORS.red, color: COLORS.white, borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: 700 }}>{emp.pendingRequests} طلب معلق</span>}
+                      {emp.pendingRequests > 0 && <span style={{ background: COLORS.red, color: COLORS.white, borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: 700 }}>{t("admin.page.epi.pendingRequestBadge", { n: emp.pendingRequests })}</span>}
                       <button
                         type="button"
                         onClick={() => onIssueEpi(emp)}
                         style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: COLORS.navy, color: COLORS.white, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                       >
-                        📦 إرسال معدات
+                        📦 {t("admin.page.epi.sendEquipment")}
                       </button>
                     </div>
                   </div>
                   <div style={{ padding: "10px 20px", display: "flex", gap: 8, flexWrap: "wrap", borderBottom: `1px solid ${COLORS.border}` }}>
-                    {Object.entries({ "قميص": emp.measurements.shirt, "بنطلون": emp.measurements.pants, "حذاء": emp.measurements.shoes, "قفازات": emp.measurements.gloves, "سترة": emp.measurements.vest }).map(([k, v]) => (
+                    {Object.entries({
+                      [t("admin.page.epi.measureShirt")]: emp.measurements.shirt,
+                      [t("admin.page.epi.measurePants")]: emp.measurements.pants,
+                      [t("admin.page.epi.measureShoes")]: emp.measurements.shoes,
+                      [t("admin.page.epi.measureGloves")]: emp.measurements.gloves,
+                      [t("admin.page.epi.measureVest")]: emp.measurements.vest,
+                    }).map(([k, v]) => (
                       <span key={k} style={{ padding: "3px 10px", background: COLORS.grayLight, borderRadius: 20, fontSize: 12, color: COLORS.text }}>{k}: <strong>{v}</strong></span>
                     ))}
                   </div>
@@ -1833,11 +1856,11 @@ const EpiView = ({
                         receivedDate: item.lastIssued ?? null,
                         nextReplacementAt: item.nextReplacementAt ?? null,
                       });
-                      const expiryHint = getExpiryLabel(item.label, item.lastIssued ?? null);
+                      const expiryHint = getExpiryLabel(item.labelAr, item.lastIssued ?? null, t);
                       const statusStyle = getStatusLabel(visualStatus);
                       const statusColor = statusStyle.color;
                       const statusBg = statusStyle.bgColor;
-                      const statusLabel = statusStyle.arabic;
+                      const statusLabel = epiDisplayStatusLabel(t, visualStatus);
                       const expiryTextColor =
                         expiryHint.color === "red" ? COLORS.red : expiryHint.color === "orange" ? COLORS.orange : expiryHint.color === "green" ? COLORS.green : COLORS.textMuted;
                       return (
@@ -1865,17 +1888,17 @@ const EpiView = ({
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
                             <div style={{ fontSize: 20 }}>{item.emoji}</div>
                             {item.photoProofPath ? (
-                              <span title="يوجد إثبات صورة" style={{ fontSize: 14 }} aria-hidden>
+                              <span title={t("admin.page.epi.photoProof")} style={{ fontSize: 14 }} aria-hidden>
                                 📷
                               </span>
                             ) : null}
                           </div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>{item.label}</div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>{epiOf(item.type, item.label)}</div>
                           <div style={{ fontSize: 11, color: statusColor, fontWeight: 600, marginTop: 3 }}>{statusLabel}</div>
                           {expiryHint.text ? (
                             <div style={{ fontSize: 10, color: expiryTextColor, fontWeight: 700, marginTop: 3 }}>{expiryHint.text}</div>
                           ) : null}
-                          {item.lastIssued && <div style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>{new Date(item.lastIssued).toLocaleDateString("ar-MA")}</div>}
+                          {item.lastIssued && <div style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>{new Date(item.lastIssued).toLocaleDateString(locale)}</div>}
                         </div>
                       );
                     })}
@@ -1899,27 +1922,40 @@ const EpiView = ({
   );
 };
 
-function employeeCategoryKeyForCourse(roleLabel: string): CategoryKey | null {
+function employeeRoleToCategoryKey(roleLabel: string): CategoryKey | null {
+  const trimmed = roleLabel.trim();
+  if (!trimmed) return null;
+  const fromCode = categoryKeyFromCode(trimmed);
+  if (fromCode) return fromCode;
   for (const key of CATEGORY_ORDER) {
-    if (CATEGORIES[key].label.ar === roleLabel) return key;
+    const def = CATEGORIES[key];
+    if (def.label.ar === trimmed || def.label.fr === trimmed || def.label.en === trimmed) {
+      return key;
+    }
   }
-  if (roleLabel.includes("كناس") || roleLabel.includes("عامل كنس")) return "sweeper";
+  if (trimmed.includes("كناس") || trimmed.includes("عامل كنس") || trimmed.includes("عامل نظافة")) return "sweeper";
+  if (trimmed.includes("سائق")) return "driver";
+  if (trimmed.includes("شاحن") || trimmed.includes("عامل شحن")) return "loader";
+  if (trimmed.includes("رئيس فريق")) return "teamLeader";
+  if (trimmed.includes("عون الحظيرة") || trimmed.includes("الحظيرة")) return "parkAgent";
+  if (trimmed.includes("عون الصيانة") || trimmed.includes("الصيانة")) return "maintenance";
   return null;
 }
 
-/** Employees whose job category can take this course (by role assignment, not LMS enrollment). */
+/** Active employees whose job category matches one of the course's assigned roles. */
 function eligibleEmployeesForCourse(course: Course, employees: Employee[]): Employee[] {
-  if (!employees.length) return [];
+  if (!employees.length || !course.categoryCodes.length) return [];
   return employees.filter((emp) => {
-    const key = employeeCategoryKeyForCourse(emp.role);
+    if (emp.isActive === false) return false;
+    const key = emp.categoryKey ?? employeeRoleToCategoryKey(emp.role);
     return key != null && course.categoryCodes.includes(key);
   });
 }
 
-function formatCourseRolesLabel(categoryCodes: CategoryKey[]): string {
+function formatCourseRolesLabel(categoryCodes: CategoryKey[], lang: import("@/pages/admin/dashboardI18n").CategoryLang): string {
   const labels = categoryCodes
     .filter((code) => CATEGORIES[code])
-    .map((code) => CATEGORIES[code].label.ar);
+    .map((code) => CATEGORIES[code].label[lang]);
   if (!labels.length) return "—";
   return labels.join(" · ");
 }
@@ -1948,11 +1984,12 @@ function AdminCourseCard({
   onEdit: (course: Course) => void;
   onDelete: (course: Course) => void;
 }) {
+  const { t, categoryLang, nameOf } = useDashboardI18n();
   const [showEligibleNames, setShowEligibleNames] = useState(false);
   const eligibleCount = eligibleEmployees.length;
   const { icon, coverColor } = resolveCourseCardVisual(course.slug, course.icon, course.coverColor);
-  const title = course.title.ar ?? course.title.en ?? course.title.fr ?? "—";
-  const rolesLabel = formatCourseRolesLabel(course.categoryCodes);
+  const title = course.title[categoryLang] ?? course.title.en ?? course.title.fr ?? course.title.ar ?? "—";
+  const rolesLabel = formatCourseRolesLabel(course.categoryCodes, categoryLang);
   const coverStyle = adminCourseCoverStyle(coverColor);
   const completionPct = Math.round(course.completionRate);
   const completionColor = completionPct > 0 ? COLORS.green : COLORS.gray;
@@ -1974,7 +2011,7 @@ function AdminCourseCard({
         <div className="absolute end-3 top-3 z-30 flex items-center gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           <button
             type="button"
-            aria-label="تعديل"
+            aria-label={t("admin.page.actions.edit")}
             className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/40 bg-white/70 text-slate-800 shadow-sm backdrop-blur-md transition hover:bg-white/85 active:scale-[0.97]"
             onClick={(e) => {
               e.preventDefault();
@@ -1986,7 +2023,7 @@ function AdminCourseCard({
           </button>
           <button
             type="button"
-            aria-label="حذف"
+            aria-label={t("admin.page.actions.delete")}
             className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/40 bg-white/70 text-red-700 shadow-sm backdrop-blur-md transition hover:bg-white/85 active:scale-[0.97]"
             onClick={(e) => {
               e.preventDefault();
@@ -2030,7 +2067,14 @@ function AdminCourseCard({
                     color: course.hasQuiz ? COLORS.green : COLORS.orange,
                   }}
                 >
-                  {course.hasQuiz ? "✓ لديه اختبار" : "! لا اختبار"}
+                  {course.hasQuiz ? (
+                    t("admin.page.courses.quizYes")
+                  ) : (
+                    <>
+                      <X size={12} strokeWidth={3} aria-hidden />
+                      {t("admin.page.courses.quizNo")}
+                    </>
+                  )}
                 </span>
                 <span
                   className="card-badge"
@@ -2043,8 +2087,8 @@ function AdminCourseCard({
                   role="button"
                   aria-label={
                     eligibleCount > 0
-                      ? `الدور: ${rolesLabel} — ${eligibleEmployees.map((e) => e.name).join("، ")}`
-                      : `الدور: ${rolesLabel}`
+                      ? t("admin.page.courses.roleTooltip", { roles: rolesLabel, names: eligibleEmployees.map((e) => e.name).join(", ") })
+                      : t("admin.page.courses.roleOnly", { roles: rolesLabel })
                   }
                 >
                   {rolesLabel}
@@ -2053,7 +2097,7 @@ function AdminCourseCard({
                       style={{
                         position: "absolute",
                         bottom: "calc(100% + 6px)",
-                        right: 0,
+                        insetInlineEnd: 0,
                         zIndex: 60,
                         minWidth: 140,
                         maxWidth: 260,
@@ -2064,15 +2108,15 @@ function AdminCourseCard({
                         fontSize: 11,
                         fontWeight: 600,
                         lineHeight: 1.5,
-                        textAlign: "right",
-                        boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+                        textAlign: "start",
+                        boxShadow: COLORS.shadowLg,
                         pointerEvents: "none",
                       }}
                     >
                       {eligibleCount > 0 ? (
                         eligibleEmployees.map((emp) => (
                           <span key={emp.id} style={{ display: "block" }}>
-                            {emp.name}
+                            {nameOf(emp.name)}
                             {emp.employeeCode ? (
                               <span style={{ opacity: 0.75, marginInlineStart: 4 }} dir="ltr">
                                 {emp.employeeCode}
@@ -2081,7 +2125,7 @@ function AdminCourseCard({
                           </span>
                         ))
                       ) : (
-                        <span style={{ display: "block" }}>لا يوجد موظف مرتبط بهذه الدورة</span>
+                        <span style={{ display: "block" }}>{t("admin.page.courses.noEligibleEmployees")}</span>
                       )}
                     </span>
                   )}
@@ -2095,7 +2139,7 @@ function AdminCourseCard({
                     color: completionColor,
                   }}
                 >
-                  📊 {completionPct}% إكمال
+                  📊 {t("admin.page.courses.completionPct", { pct: completionPct })}
                 </span>
               </div>
             </div>
@@ -2108,6 +2152,7 @@ function AdminCourseCard({
 
 const CoursesView = ({
   courses,
+  employees,
   categoryFilter,
   onCategoryFilterChange,
   onEdit,
@@ -2115,20 +2160,16 @@ const CoursesView = ({
   onAddCourse,
 }: {
   courses: Course[];
+  employees: Employee[];
   categoryFilter: "all" | CategoryKey;
   onCategoryFilterChange: (filter: "all" | CategoryKey) => void;
   onEdit: (course: Course) => void;
   onDelete: (course: Course) => void;
   onAddCourse: () => void;
 }) => {
+  const { t, categoryLang } = useDashboardI18n();
+  const isRTL = categoryLang === "ar";
   const courseList = Array.isArray(courses) ? courses : [];
-  const { data: employeesRaw } = useApiData<unknown>(
-    "/api/admin/employees?status=all&page=1&pageSize=500"
-  );
-  const employeesForEnrollment = useMemo(
-    () => mapApiEmployeesToDashboard(employeesRaw),
-    [employeesRaw]
-  );
 
   const filtered = useMemo(() => {
     if (categoryFilter === "all") return courseList;
@@ -2140,45 +2181,34 @@ const CoursesView = ({
   const categoryHasNoCourses =
     categoryFilter !== "all" && !courseList.some((c) => c.categoryCodes.includes(categoryFilter));
 
-  const handleCategoryFilterChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    const v = e.currentTarget.value;
-    onCategoryFilterChange(v === "all" ? "all" : (v as CategoryKey));
-  };
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12 }}>
         {[
-          { label: "إجمالي الدورات", val: filtered.length, color: COLORS.navy },
-          { label: "لديها اختبار", val: filtered.filter((c) => c.hasQuiz).length, color: COLORS.blue },
-          { label: "نسبة إكمال > 70%", val: filtered.filter((c) => c.completionRate >= 70).length, color: COLORS.green },
-          { label: "تحتاج اختبار", val: filtered.filter((c) => !c.hasQuiz).length, color: COLORS.orange },
+          { label: t("admin.page.courses.total"), val: filtered.length, color: COLORS.navy },
+          { label: t("admin.page.courses.hasQuiz"), val: filtered.filter((c) => c.hasQuiz).length, color: COLORS.blue },
+          { label: t("admin.page.courses.completionOver70"), val: filtered.filter((c) => c.completionRate >= 70).length, color: COLORS.green },
+          { label: t("admin.page.courses.needsQuiz"), val: filtered.filter((c) => !c.hasQuiz).length, color: COLORS.orange },
         ].map(s => (
-          <div key={s.label} style={{ background: COLORS.white, borderRadius: 12, padding: "14px 16px", borderTop: `3px solid ${s.color}`, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+          <div key={s.label} style={{ background: COLORS.white, borderRadius: 12, padding: "14px 16px", borderTop: `3px solid ${s.color}`, boxShadow: COLORS.shadow }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.val}</div>
             <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
       </div>
-      <select
+      <AdminCategoryRoleSelect
         value={categoryFilter}
-        onChange={handleCategoryFilterChange}
-        style={{ padding: "8px 14px", borderRadius: 8, border: `1.5px solid ${COLORS.border}`, fontSize: 13, fontFamily: "inherit", background: COLORS.white, maxWidth: 220 }}
-      >
-        <option value="all">كل الأدوار</option>
-        {CATEGORY_ORDER.map((key) => (
-          <option key={key} value={key}>
-            {CATEGORIES[key].label.ar}
-          </option>
-        ))}
-      </select>
+        onChange={onCategoryFilterChange}
+        allLabel={t("admin.page.employees.allRoles")}
+        categoryLang={categoryLang}
+      />
       {filtered.length > 0 ? (
         <CourseCardGrid className="courses-grid">
           {filtered.map((course) => (
             <AdminCourseCard
               key={course.id}
               course={course}
-              eligibleEmployees={eligibleEmployeesForCourse(course, employeesForEnrollment)}
+              eligibleEmployees={eligibleEmployeesForCourse(course, employees)}
               onEdit={onEdit}
               onDelete={onDelete}
             />
@@ -2199,10 +2229,10 @@ const CoursesView = ({
           {isPendingCategory || categoryHasNoCourses ? (
             <>
               <div style={{ fontSize: 16, fontWeight: 700, color: COLORS.text, marginBottom: 8 }}>
-                لا توجد دورات لـ «{CATEGORIES[categoryFilter].label.ar}» بعد
+                {t("admin.page.courses.noCoursesCategory", { category: CATEGORIES[categoryFilter].label[categoryLang] })}
               </div>
               <p style={{ margin: "0 0 20px", fontSize: 14, color: COLORS.textMuted, lineHeight: 1.6, maxWidth: 420, marginInline: "auto" }}>
-                هذا الدور متاح في النظام، لكن لم تُضف له دورات تدريبية. أنشئ دورة جديدة واختر هذا الدور ضمن «الأدوار المستهدفة».
+                {t("admin.page.courses.emptyCategoryHint")}
               </p>
               <button
                 type="button"
@@ -2218,11 +2248,15 @@ const CoursesView = ({
                   cursor: "pointer",
                 }}
               >
-                + إضافة دورة لهذا الدور
+                {isRTL ? (
+                  <>{t("admin.page.courses.addCourseForRole")} +</>
+                ) : (
+                  <>+ {t("admin.page.courses.addCourseForRole")}</>
+                )}
               </button>
             </>
           ) : (
-            <div style={{ fontSize: 14, color: COLORS.textMuted }}>لا توجد دورات مطابقة للتصفية الحالية</div>
+            <div style={{ fontSize: 14, color: COLORS.textMuted }}>{t("admin.page.courses.noFilterMatch")}</div>
           )}
         </div>
       )}
@@ -2231,14 +2265,15 @@ const CoursesView = ({
 };
 
 const AnalyticsView = ({ employees, courses, weekly }: { employees: Employee[]; courses: Course[]; weekly: WeeklyCompletion[] }) => {
+  const { t, nameOf, categoryLang } = useDashboardI18n();
   const heatmapCells: HeatmapCell[] = [];
   employees.forEach(emp => {
     courses.forEach(course => {
       heatmapCells.push({
         employeeId: emp.id,
-        employeeName: emp.name,
+        employeeName: nameOf(emp.name),
         courseId: course.id,
-        courseTitle: courseTitleAr(course),
+        courseTitle: courseTitleForLang(course.title, categoryLang),
         completed: emp.completedCourses > 0 && course.completionRate > 0,
         score: emp.avgScore > 0 ? emp.avgScore : undefined,
       });
@@ -2249,24 +2284,24 @@ const AnalyticsView = ({ employees, courses, weekly }: { employees: Employee[]; 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-        <SectionHeader title="الإكمال الأسبوعي (8 أسابيع)" subtitle="عدد الدورات المكتملة أسبوعياً" />
+      <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: COLORS.shadow }}>
+        <SectionHeader title={t("admin.page.analytics.weekly")} subtitle={t("admin.page.analytics.weeklySub")} />
         <WeeklyChart data={weekly} />
       </div>
-      <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-        <SectionHeader title="خريطة الإكمال" subtitle="نظرة عامة على كل موظف × كل دورة" />
+      <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: COLORS.shadow }}>
+        <SectionHeader title={t("admin.page.analytics.heatmap")} subtitle={t("admin.page.analytics.heatmapSub")} />
         <CompletionHeatmap data={heatmapCells} employees={uniqueEmployees} courses={uniqueCourses} />
       </div>
-      <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-        <SectionHeader title="تفصيل الموظفين" subtitle="نسبة التقدم لكل موظف" />
+      <div style={{ background: COLORS.white, borderRadius: 16, padding: 20, boxShadow: COLORS.shadow }}>
+        <SectionHeader title={t("admin.page.analytics.employeeDetail")} subtitle={t("admin.page.analytics.employeeDetailSub")} />
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {employees.map(emp => (
             <div key={emp.id} style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <Avatar role={emp.role} size={36} />
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{emp.name}</span>
-                  <span style={{ fontSize: 12, color: COLORS.textMuted }}>{emp.completedCourses}/{emp.totalCourses} دورة{emp.avgScore > 0 && <span style={{ color: COLORS.green, fontWeight: 700 }}> • {emp.avgScore}%</span>}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{nameOf(emp.name)}</span>
+                  <span style={{ fontSize: 12, color: COLORS.textMuted }}>{t("admin.page.employees.courseCount", { completed: emp.completedCourses, total: emp.totalCourses })}{emp.avgScore > 0 && <span style={{ color: COLORS.green, fontWeight: 700 }}> • {emp.avgScore}%</span>}</span>
                 </div>
                 <ProgressBar value={emp.completedCourses} max={emp.totalCourses || 1} />
               </div>
@@ -2289,6 +2324,7 @@ const AddEmployeeModal = ({
   onSuccess: () => void;
   onError: () => void;
 }) => {
+  const { t, categoryLang } = useDashboardI18n();
   const [name, setName] = useState("");
   const [role, setRole] = useState<CategoryKey | "">("");
   const [submitting, setSubmitting] = useState(false);
@@ -2328,6 +2364,8 @@ const AddEmployeeModal = ({
     fontFamily: "inherit",
     outline: "none",
     boxSizing: "border-box",
+    background: COLORS.btnBg,
+    color: COLORS.text,
   };
 
   return (
@@ -2351,7 +2389,7 @@ const AddEmployeeModal = ({
           width: "100%",
           maxWidth: 480,
           overflow: "hidden",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+          boxShadow: COLORS.shadowLg,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -2364,11 +2402,11 @@ const AddEmployeeModal = ({
             alignItems: "center",
           }}
         >
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: COLORS.white }}>إضافة موظف جديد</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: COLORS.white }}>{t("admin.empForm.title")}</h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="إغلاق"
+            aria-label={t("admin.page.actions.close")}
             style={{
               background: "rgba(255,255,255,0.15)",
               border: "none",
@@ -2385,39 +2423,39 @@ const AddEmployeeModal = ({
         </div>
         <div style={{ padding: "20px 24px" }}>
           <div style={{ marginBottom: 16 }}>
-            <label style={fieldLabel}>الاسم الكامل</label>
+            <label style={fieldLabel}>{t("admin.empForm.name")}</label>
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="اكتب الاسم الكامل..."
+              placeholder={t("admin.page.addEmployee.namePlaceholder")}
               style={inputStyle}
             />
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label style={fieldLabel}>الدور/الفئة</label>
+            <label style={fieldLabel}>{t("admin.page.addEmployee.roleLabel")}</label>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as CategoryKey | "")}
-              style={{ ...inputStyle, background: COLORS.white, cursor: "pointer" }}
+              style={{ ...inputStyle, cursor: "pointer" }}
             >
-              <option value="">اختر الدور...</option>
+              <option value="">{t("admin.page.addEmployee.selectRole")}</option>
               {ADD_EMPLOYEE_ROLE_OPTIONS.map(({ key, emoji }) => (
                 <option key={key} value={key}>
-                  {emoji} {CATEGORIES[key].label.ar}
+                  {emoji} {CATEGORIES[key].label[categoryLang]}
                 </option>
               ))}
             </select>
           </div>
           <div style={{ marginBottom: 20, display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ fontSize: 13 }}>
-              <span style={{ fontWeight: 600, color: COLORS.text }}>المعرّف: </span>
-              <span style={{ color: COLORS.textMuted }}>سيتم توليده تلقائياً</span>
+              <span style={{ fontWeight: 600, color: COLORS.text }}>{t("admin.page.addEmployee.idLabel")}: </span>
+              <span style={{ color: COLORS.textMuted }}>{t("admin.page.addEmployee.idAuto")}</span>
             </div>
             <div style={{ fontSize: 13 }}>
-              <span style={{ fontWeight: 600, color: COLORS.text }}>الرمز السري: </span>
-              <span style={{ color: COLORS.textMuted }}>1234 (افتراضي)</span>
+              <span style={{ fontWeight: 600, color: COLORS.text }}>{t("admin.empForm.pin")}: </span>
+              <span style={{ color: COLORS.textMuted }}>{t("admin.page.addEmployee.pinDefault")}</span>
             </div>
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
@@ -2428,14 +2466,14 @@ const AddEmployeeModal = ({
                 padding: "10px 20px",
                 borderRadius: 10,
                 border: `1.5px solid ${COLORS.border}`,
-                background: COLORS.white,
+                background: COLORS.btnBg,
                 color: COLORS.text,
                 fontSize: 14,
                 fontWeight: 600,
                 cursor: "pointer",
               }}
             >
-              إلغاء
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -2453,7 +2491,7 @@ const AddEmployeeModal = ({
                 opacity: !canSubmit || submitting ? 0.7 : 1,
               }}
             >
-              {submitting ? "جاري الإضافة..." : "إضافة"}
+              {submitting ? t("admin.page.actions.adding") : t("admin.page.actions.add")}
             </button>
           </div>
         </div>
@@ -2463,20 +2501,21 @@ const AddEmployeeModal = ({
 };
 
 const EmployeeDetailModal = ({ employee, onClose }: { employee: Employee; onClose: () => void }) => {
+  const { t, locale, nameOf, roleOf } = useDashboardI18n();
   const role = getRoleConfig(employee.role);
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
-      <div style={{ background: COLORS.white, borderRadius: 20, width: "100%", maxWidth: 520, maxHeight: "85vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: COLORS.white, borderRadius: 20, width: "100%", maxWidth: 520, maxHeight: "85vh", overflow: "auto", boxShadow: COLORS.shadowLg }} onClick={e => e.stopPropagation()}>
         <div style={{ background: COLORS.navy, padding: "24px 24px 20px", borderRadius: "20px 20px 0 0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
               <Avatar role={employee.role} size={52} />
               <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.white }}>{employee.name}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.white }}>{nameOf(employee.name)}</div>
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>{employee.employeeCode ?? employee.id}</div>
                 <span style={{ marginTop: 6, display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600, background: role.bg, color: role.color }}>
                   <RoleIcon role={employee.role} size={14} />
-                  {employee.role}
+                  {roleOf(employee.role, employee.categoryKey)}
                 </span>
               </div>
             </div>
@@ -2486,22 +2525,22 @@ const EmployeeDetailModal = ({ employee, onClose }: { employee: Employee; onClos
         <div style={{ padding: "20px 24px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
             {[
-              { label: "متوسط النتيجة", val: employee.avgScore > 0 ? `${employee.avgScore}%` : "—", icon: "🎯" },
-              { label: "الدورات المكتملة", val: `${employee.completedCourses}/${employee.totalCourses}`, icon: "📚" },
-              { label: "الحالة", val: employee.status === "in_progress" ? "قيد التقدم" : employee.status === "completed" ? "مكتمل" : "لم يبدأ", icon: "📋" },
+              { label: t("admin.page.employees.avgScore"), val: employee.avgScore > 0 ? `${employee.avgScore}%` : "—", icon: "🎯" },
+              { label: t("admin.page.employees.coursesCompleted"), val: `${employee.completedCourses}/${employee.totalCourses}`, icon: "📚" },
+              { label: t("admin.page.table.status"), val: employeeStatusLabel(t, employee.status), icon: "📋" },
             ].map(s => (
               <div key={s.label} style={{ padding: "12px", background: COLORS.cream, borderRadius: 10, textAlign: "center" }}>
                 <div style={{ fontSize: 22 }}>{s.icon}</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.navy, margin: "4px 0" }}>{s.val}</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.brand, margin: "4px 0" }}>{s.val}</div>
                 <div style={{ fontSize: 11, color: COLORS.textMuted }}>{s.label}</div>
               </div>
             ))}
           </div>
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>التقدم الإجمالي</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: COLORS.text }}>{t("admin.page.employees.overallProgress")}</div>
             <ProgressBar value={employee.completedCourses} max={employee.totalCourses || 1} />
           </div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted }}>آخر نشاط: {new Date(employee.lastActivity).toLocaleDateString("ar-MA", { year: "numeric", month: "long", day: "numeric" })}</div>
+          <div style={{ fontSize: 13, color: COLORS.textMuted }}>{t("admin.page.employees.lastActivity", { date: new Date(employee.lastActivity).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" }) })}</div>
         </div>
       </div>
     </div>
@@ -2511,18 +2550,24 @@ const EmployeeDetailModal = ({ employee, onClose }: { employee: Employee; onClos
 export function DashboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t, locale, categoryLang } = useDashboardI18n();
+  const isRTL = categoryLang === "ar";
   const [activeTab, setActiveTab] = useState<Tab>(() => tabFromPath(location.pathname));
 
   useEffect(() => {
-    setActiveTab(tabFromPath(location.pathname));
+    if (location.pathname.startsWith("/admin/settings")) {
+      setActiveTab("settings");
+    }
   }, [location.pathname]);
 
   const goToTab = useCallback(
     (id: Tab) => {
       setActiveTab(id);
       if (id === "settings") {
-        if (location.pathname !== "/admin/settings") navigate("/admin/settings");
-      } else if (location.pathname === "/admin/settings") {
+        navigate("/admin/settings");
+        return;
+      }
+      if (location.pathname.startsWith("/admin/settings")) {
         navigate("/admin");
       }
     },
@@ -2576,7 +2621,7 @@ export function DashboardPage() {
       return true;
     } catch (e) {
       if (!silent) {
-        setEpiLoadError(e instanceof Error ? e.message : "تعذر تحميل بيانات المعدات");
+        setEpiLoadError(e instanceof Error ? e.message : t("admin.page.errors.loadEpi"));
         setEpiRaw(null);
       }
       return false;
@@ -2683,7 +2728,10 @@ export function DashboardPage() {
     () => filterCoursesForAdminDashboard(mapAdminCoursesToDashboard(coursesRaw)),
     [coursesRaw]
   );
-  const activity = useMemo(() => mapAdminActivityToDashboard(activityData), [activityData]);
+  const activity = useMemo(
+    () => mapAdminActivityToDashboard(activityData, t, categoryLang),
+    [activityData, t, categoryLang]
+  );
   const weekly = useMemo(() => mapWeeklyAnalyticsToDashboard(weeklyData), [weeklyData]);
 
   const showStatsLoadError = Boolean(statsError && !statsLoading && stats == null);
@@ -2716,9 +2764,9 @@ export function DashboardPage() {
         window.setTimeout(() => setJustRefreshedManual(false), 4000);
       } else if (anyOk) {
         markRefreshSuccess();
-        showToast("⚠️ تم تحديث بعض البيانات فقط");
+        showToast(`⚠️ ${t("admin.page.toasts.partialRefresh")}`);
       } else {
-        showToast("❌ تعذّر تحديث البيانات");
+        showToast(`❌ ${t("admin.page.toasts.refreshFailed")}`);
       }
     } finally {
       setManualRefreshing(false);
@@ -2752,14 +2800,14 @@ export function DashboardPage() {
   };
 
   const handleDeleteCourse = async (course: Course) => {
-    const title = courseTitleAr(course);
-    if (!window.confirm(`هل تريد حذف الدورة «${title}»؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+    const title = courseTitleForLang(course.title, categoryLang);
+    if (!window.confirm(t("admin.page.toasts.deleteConfirm", { title }))) return;
     try {
       await adminApi.deleteCourse(course.id);
       void refetchCourses();
-      showToast("✅ تم حذف الدورة بنجاح");
+      showToast(`✅ ${t("admin.page.toasts.deleteOk")}`);
     } catch {
-      showToast("❌ تعذر حذف الدورة");
+      showToast(`❌ ${t("admin.page.toasts.deleteFailed")}`);
     }
   };
 
@@ -2790,56 +2838,61 @@ export function DashboardPage() {
 
   return (
     <div
-      dir="rtl"
+      dir={isRTL ? "rtl" : "ltr"}
       style={{
         display: "flex",
         height: "100vh",
         overflow: "hidden",
         fontFamily: "'Segoe UI', 'Arial', sans-serif",
         background: COLORS.cream,
+        color: COLORS.text,
       }}
     >
       <aside style={{
         width: 220,
-        background: COLORS.navy,
-        color: COLORS.white,
+        background: SIDEBAR.navy,
+        color: SIDEBAR.white,
         display: "flex",
         flexDirection: "column",
         flexShrink: 0,
         height: "100vh",
         overflowY: "auto",
+        overflowX: "visible",
       }}>
         <div style={{ padding: "24px 20px 20px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.white }}>Averda Academy</div>
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>لوحة الإدارة</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: SIDEBAR.white }}>Averda Academy</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{t("admin.nav.panelSubtitle")}</div>
         </div>
         <nav style={{ padding: "12px 12px", flex: 1 }}>
-          {NAV_ITEMS.map(item => (
+          {NAV_ITEMS.map(item => {
+            const Icon = item.icon;
+            return (
             <button key={item.id} onClick={() => goToTab(item.id)} style={{
               display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", borderRadius: 10,
-              border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600, marginBottom: 4, textAlign: "right",
-              background: activeTab === item.id ? COLORS.white : "transparent",
-              color: activeTab === item.id ? COLORS.navy : "rgba(255,255,255,0.75)", transition: "all 0.15s",
+              border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600, marginBottom: 4, textAlign: "start",
+              background: activeTab === item.id ? SIDEBAR.white : "transparent",
+              color: activeTab === item.id ? SIDEBAR.navy : "rgba(255,255,255,0.75)", transition: "all 0.15s",
             }}>
-              <span style={{ fontSize: 16 }}>{item.icon}</span>
-              {item.label}
+              <Icon size={16} aria-hidden />
+              {t(item.labelKey)}
               {item.id === "epi" &&
                 (pendingRenewalCount > 0 || epiEmployees.filter((e) => e.statusSummary !== "ok").length > 0) && (
-                <span style={{ marginRight: "auto", background: COLORS.red, color: COLORS.white, borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>
+                <span style={{ marginInlineStart: "auto", background: SIDEBAR.red, color: SIDEBAR.white, borderRadius: 20, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>
                   {pendingRenewalCount > 0
                     ? pendingRenewalCount
                     : epiEmployees.filter((e) => e.statusSummary !== "ok").length}
                 </span>
               )}
             </button>
-          ))}
+          );
+          })}
         </nav>
         <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: "50%", background: COLORS.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: COLORS.navyDark }}>A</div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.white }}>Averda Admin</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>مدير النظام</div>
+            <div style={{ width: 34, height: 34, borderRadius: "50%", background: SIDEBAR.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: SIDEBAR.navyDark }}>A</div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: SIDEBAR.white }}>Averda Admin</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{t("admin.sidebar.adminLabel")}</div>
             </div>
           </div>
         </div>
@@ -2859,24 +2912,39 @@ export function DashboardPage() {
               fontWeight: 600,
             }}
           >
-            ⚠️ تعذّر التحديث — العرض قد لا يكون حديثاً
+            ⚠️ {t("admin.page.errors.staleBanner")}
           </div>
         )}
         <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: COLORS.text }}>
-              {NAV_ITEMS.find(n => n.id === activeTab)?.icon} {NAV_ITEMS.find(n => n.id === activeTab)?.label}
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: COLORS.text, display: "flex", alignItems: "center", gap: 8 }}>
+              {(() => {
+                const activeNav = NAV_ITEMS.find((n) => n.id === activeTab);
+                if (!activeNav) return null;
+                const ActiveIcon = activeNav.icon;
+                return (
+                  <>
+                    <ActiveIcon size={22} aria-hidden />
+                    {t(activeNav.labelKey)}
+                  </>
+                );
+              })()}
             </h1>
             <p style={{ margin: "4px 0 0", fontSize: 14, color: COLORS.textMuted }}>
               {activeTab === "analytics"
-                ? "أداء الموظفين عبر الزمن"
+                ? t("admin.analytics.title")
                 : activeTab === "settings"
-                  ? "إدارة مفاتيح التكامل دون تعديل الكود"
-                  : new Date().toLocaleDateString("ar-MA", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                  ? t("admin.settings.subtitle")
+                  : new Date().toLocaleDateString(locale, {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
             </p>
             {lastUpdated && (
               <p style={{ margin: "6px 0 0", fontSize: 13, color: COLORS.textMuted }}>
-                آخر تحديث: {formatArUpdateTime(lastUpdated)}
+                {t("admin.page.actions.lastUpdated", { time: formatUpdateTime(lastUpdated, locale) })}
               </p>
             )}
           </div>
@@ -2889,26 +2957,28 @@ export function DashboardPage() {
               flexShrink: 0,
             }}
           >
+            <LanguageSwitcherCompact />
+            <ThemeToggle variant="admin" />
             <AdminExportDropdown
               employees={employees}
               epiEmployees={epiEmployees}
               courses={courses}
               weekly={weekly}
-              onExported={() => showToast("✅ تم التصدير")}
+              onExported={() => showToast(t("admin.page.export.done"))}
             />
             <button
               type="button"
               onClick={() => void refreshAll()}
               disabled={manualRefreshing}
-              aria-label="تحديث البيانات"
-              title="تحديث جميع البيانات"
+              aria-label={t("admin.page.actions.refresh")}
+              title={t("admin.page.actions.refreshAll")}
               style={{
                 width: 40,
                 height: 40,
                 borderRadius: "50%",
                 border: `2px solid ${COLORS.navy}`,
-                background: COLORS.white,
-                color: COLORS.navy,
+                background: COLORS.btnBg,
+                color: COLORS.btnFg,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -2928,18 +2998,20 @@ export function DashboardPage() {
             </button>
             {justRefreshedManual && (
               <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.green, direction: "rtl" }}>
-                آخر تحديث: الآن
+                {t("admin.page.actions.lastUpdatedNow")}
               </span>
             )}
             {activeTab === "courses" && (
               <button
                 type="button"
-                onClick={() =>
-                  openNewCourseForm(coursesCategoryFilter !== "all" ? [coursesCategoryFilter] : undefined)
-                }
+                onClick={() => openNewCourseForm(defaultCategoriesForCourseFilter(coursesCategoryFilter))}
                 style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: COLORS.navy, color: COLORS.white, fontSize: 14, fontWeight: 700, cursor: "pointer" }}
               >
-                + إضافة دورة
+                {isRTL ? (
+                  <>{t("admin.page.courses.addCourse")} +</>
+                ) : (
+                  <>+ {t("admin.page.courses.addCourse")}</>
+                )}
               </button>
             )}
             {activeTab === "employees" && (
@@ -2948,13 +3020,17 @@ export function DashboardPage() {
                 onClick={() => setShowAddEmployee(true)}
                 style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: COLORS.navy, color: COLORS.white, fontSize: 14, fontWeight: 700, cursor: "pointer" }}
               >
-                + إضافة موظف
+                {isRTL ? (
+                  <>{t("admin.page.employees.addEmployee")} +</>
+                ) : (
+                  <>+ {t("admin.page.employees.addEmployee")}</>
+                )}
               </button>
             )}
           </div>
         </div>
 
-        {isInitialLoading ? (
+        {isInitialLoading && activeTab !== "settings" ? (
           <Spinner />
         ) : (
           <>
@@ -2970,7 +3046,7 @@ export function DashboardPage() {
                 }}
               >
                 <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.red, marginBottom: 8 }}>
-                  تعذر تحميل بيانات الموظفين
+                  {t("admin.page.errors.loadEmployees")}
                 </div>
                 <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 12 }}>{empError}</div>
                 <button
@@ -2987,7 +3063,7 @@ export function DashboardPage() {
                     cursor: "pointer",
                   }}
                 >
-                  إعادة المحاولة
+                  {t("admin.page.errors.retry")}
                 </button>
               </div>
             )}
@@ -3018,7 +3094,7 @@ export function DashboardPage() {
                 }}
               >
                 <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.red, marginBottom: 8 }}>
-                  تعذر تحميل بيانات المعدات
+                  {t("admin.page.errors.loadEpi")}
                 </div>
                 <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 12 }}>{epiLoadError}</div>
                 <button
@@ -3035,7 +3111,7 @@ export function DashboardPage() {
                     cursor: "pointer",
                   }}
                 >
-                  إعادة المحاولة
+                  {t("admin.page.errors.retry")}
                 </button>
               </div>
             )}
@@ -3057,12 +3133,13 @@ export function DashboardPage() {
             {activeTab === "courses" && !showCoursesLoadError && (
               <CoursesView
                 courses={courses}
+                employees={employees}
                 categoryFilter={coursesCategoryFilter}
                 onCategoryFilterChange={setCoursesCategoryFilter}
                 onEdit={handleEditCourse}
                 onDelete={handleDeleteCourse}
                 onAddCourse={() =>
-                  openNewCourseForm(coursesCategoryFilter !== "all" ? [coursesCategoryFilter] : undefined)
+                  openNewCourseForm(defaultCategoriesForCourseFilter(coursesCategoryFilter))
                 }
               />
             )}
@@ -3072,7 +3149,7 @@ export function DashboardPage() {
             {activeTab === "analytics" && !showWeeklyLoadError && (
               <AnalyticsView employees={employees} courses={courses} weekly={weekly} />
             )}
-            {activeTab === "settings" && <SettingsView embedded onBack={() => goToTab("dashboard")} />}
+            {activeTab === "settings" && <SettingsView embedded />}
           </>
         )}
       </main>
@@ -3089,7 +3166,7 @@ export function DashboardPage() {
         }}
         onIssued={async () => {
           await refetchEpi();
-          showToast("✅ تم إرسال المعدات — ستظهر للموظف في الانتظار");
+          showToast(`✅ ${t("admin.page.toasts.epiIssued")}`);
         }}
         onError={showToast}
       />
@@ -3100,10 +3177,10 @@ export function DashboardPage() {
         onSuccess={() => {
           setShowAddEmployee(false);
           void refetchEmployees();
-          showToast("✅ تم إضافة الموظف بنجاح");
+          showToast(`✅ ${t("admin.page.toasts.employeeAdded")}`);
         }}
         onError={() => {
-          showToast("❌ فشل الإضافة — حاول مرة أخرى");
+          showToast(`❌ ${t("admin.page.toasts.employeeAddFailed")}`);
         }}
       />
 
@@ -3121,7 +3198,7 @@ export function DashboardPage() {
           void refetchCourses();
           setCourseFormOpen(false);
           setEditingCourse(null);
-          showToast(wasEdit ? "✅ تم تحديث الدورة بنجاح" : "✅ تم حفظ الدورة بنجاح");
+          showToast(`✅ ${wasEdit ? t("admin.page.toasts.courseUpdated") : t("admin.page.toasts.courseSaved")}`);
         }}
       />
 

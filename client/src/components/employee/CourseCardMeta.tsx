@@ -1,38 +1,35 @@
+import { useTranslation } from "react-i18next";
 import { courseCardMetaRowStyle } from "@/components/employee/courseCardLayout";
-import { getLastRead, getReadTime } from "@/utils/courseReadTime";
+import { getLastReadRelative, getReadTime } from "@/utils/courseReadTime";
 
 type Props = {
   titleAr: string;
   courseId: string;
-  lang: "ar" | "fr" | "en";
   showLastRead: boolean;
 };
 
-export function CourseCardMeta({ titleAr, courseId, lang, showLastRead }: Props) {
+export function CourseCardMeta({ titleAr, courseId, showLastRead }: Props) {
+  const { t } = useTranslation();
   const readMins = getReadTime(titleAr);
-  const lastReadLabel = showLastRead ? getLastRead(courseId) : null;
+  const lastReadRelative = showLastRead ? getLastReadRelative(courseId) : null;
 
-  const readLabel =
-    lang === "ar"
-      ? `${readMins} دقائق`
-      : lang === "fr"
-        ? `${readMins} min`
-        : `${readMins} min read`;
+  const readLabel = t("employee.courseMeta.readTime", { n: readMins });
 
-  const lastReadText =
-    lang === "ar"
-      ? `آخر قراءة: ${lastReadLabel}`
-      : lang === "fr"
-        ? `Dernière lecture : ${lastReadLabel}`
-        : `Last read: ${lastReadLabel}`;
+  const lastReadWhen = lastReadRelative
+    ? lastReadRelative.type === "today"
+      ? t("employee.courseMeta.today")
+      : lastReadRelative.type === "yesterday"
+        ? t("employee.courseMeta.yesterday")
+        : t("employee.courseMeta.daysAgo", { n: lastReadRelative.count })
+    : null;
 
   return (
     <div className="card-meta" style={courseCardMetaRowStyle}>
       <span>⏱ {readLabel}</span>
-      {lastReadLabel ? (
+      {lastReadWhen ? (
         <>
-          <span style={{ color: "#d1d5db" }}>•</span>
-          <span>📖 {lastReadText}</span>
+          <span className="opacity-60">•</span>
+          <span>📖 {t("employee.courseMeta.lastRead", { when: lastReadWhen })}</span>
         </>
       ) : null}
     </div>

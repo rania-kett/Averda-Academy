@@ -425,9 +425,9 @@ export function CoursesAdminPage() {
             layout
             className={`relative flex h-full min-h-[320px] flex-col overflow-hidden rounded-[12px] border border-[#E2E8F0] bg-white text-[#0F172A] shadow-[0_2px_10px_rgba(0,0,0,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(0,0,0,0.10)] dark:border-[#30363D] dark:bg-[#161B22] dark:text-slate-100 dark:shadow-[0_10px_30px_rgba(0,0,0,0.30)]`}
             style={{
-              borderLeftWidth: 4,
-              borderLeftStyle: "solid",
-              borderLeftColor: (() => {
+              borderInlineStartWidth: 4,
+              borderInlineStartStyle: "solid",
+              borderInlineStartColor: (() => {
                 const codes = (c.categories ?? []).map((x) => x.code).filter(Boolean);
                 if (!codes.length) return "rgba(226,232,240,1)";
                 const visibleCategoryCode =
@@ -455,7 +455,7 @@ export function CoursesAdminPage() {
               <span className="drop-shadow-sm">{String(c.icon || "📘")}</span>
 
               {/* Floating actions over banner */}
-              <div className="absolute left-3 top-3 z-10 flex items-center gap-1.5">
+              <div className="absolute start-3 top-3 z-10 flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -516,9 +516,7 @@ export function CoursesAdminPage() {
             <div className="flex flex-1 flex-col p-5 pt-4">
               {/* Title */}
               <h2
-                className={`w-full text-[18px] font-extrabold leading-snug ${
-                  isAr ? "text-right" : "text-left"
-                } ${
+                className={`w-full text-start text-[18px] font-extrabold leading-snug ${
                   c.isActive ? "text-[#0F172A] dark:text-slate-100" : "text-slate-400 line-through dark:text-slate-500"
                 }`}
               >

@@ -136,7 +136,7 @@ export function AssessmentModal({ isOpen, onComplete }: Props) {
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        className="relative flex max-h-[100dvh] w-full flex-col rounded-t-2xl bg-[#F5F5F5] shadow-2xl dark:bg-[#1C1C1E]"
+        className="relative flex max-h-[100dvh] w-full flex-col rounded-t-2xl bg-[#F5F5F5] shadow-2xl dark:bg-[#1C1917]"
         style={{ pointerEvents: "auto" }}
         onPointerDown={(e) => e.stopPropagation()}
       >
@@ -290,7 +290,7 @@ function QuizPhase({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="mt-5 rounded-2xl border-s-4 bg-white p-4 text-[16px] leading-[1.65] text-[#374151] dark:bg-[#2C2C2E] dark:text-[#E5E7EB]"
+                  className="quiz-card mt-5 rounded-2xl border-s-4 bg-white p-4 text-[16px] leading-[1.65] text-[#374151] dark:border-[#44403C] dark:bg-[#292524] dark:text-[#E5E7EB]"
                   style={{ borderColor: GOLD }}
                 >
                   {q.explanation}
@@ -301,7 +301,7 @@ function QuizPhase({
         </AnimatePresence>
       </div>
 
-      <div className="shrink-0 border-t border-black/5 bg-[#F5F5F5] p-4 pb-[calc(16px+env(safe-area-inset-bottom))] dark:border-white/10 dark:bg-[#1C1C1E]">
+      <div className="shrink-0 border-t border-black/5 bg-[#F5F5F5] p-4 pb-[calc(16px+env(safe-area-inset-bottom))] dark:border-white/10 dark:bg-[#1C1917]">
         <button
           type="button"
           disabled={picked === null}
@@ -342,7 +342,7 @@ function McqButton({
   const isSel = picked === idx;
   const isCor = idx === correct;
   let border = "border-[#E5E7EB] dark:border-[#44403C]";
-  let bg = "bg-white dark:bg-[#2C2C2E]";
+  let bg = "bg-white dark:bg-[#292524]";
   if (revealed) {
     if (isCor) {
       border = "border-emerald-500";
@@ -491,7 +491,7 @@ function ResultsPhase({
             return (
               <div
                 key={qq.id}
-                className="rounded-2xl border border-[#E5E7EB] bg-white p-4 dark:border-[#44403C] dark:bg-[#2C2C2E]"
+                className="quiz-card rounded-2xl border border-[#E5E7EB] bg-white p-4 dark:border-[#44403C] dark:bg-[#292524]"
               >
                 <p className="text-[14px] font-bold text-[#111827] dark:text-white line-clamp-2">{qq.text}</p>
                 <p className="mt-2 text-[14px] text-[#6B7280] dark:text-[#9CA3AF]">
@@ -515,7 +515,7 @@ function ResultsPhase({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-black/5 bg-[#F5F5F5] p-4 pb-[calc(16px+env(safe-area-inset-bottom))] dark:border-white/10 dark:bg-[#1C1C1E]">
+      <div className="shrink-0 border-t border-black/5 bg-[#F5F5F5] p-4 pb-[calc(16px+env(safe-area-inset-bottom))] dark:border-white/10 dark:bg-[#1C1917]">
         <button
           type="button"
           disabled={submitting}

@@ -25,6 +25,9 @@
   --employee-keypad: #d6d3d1;
   --employee-progress-well: #f5f5f4;
   --employee-continue-bg: #f0fdf4;
+  --epi-ring-track: rgba(0, 0, 0, 0.08);
+  --averda-link: #2e6198;
+  --averda-link-hover: #1e3a5f;
 
   /* Visual viewport shell (mobile browser chrome) */
   --app-vv-top: 0px;
@@ -35,6 +38,7 @@
 
   /* Admin main — light */
   --admin-main-bg: #f8fafc;
+  --admin-dashboard-bg: #f8f5ef;
   --admin-card: #ffffff;
   --admin-border: #e2e8f0;
   --admin-fg: #0f172a;
@@ -42,6 +46,19 @@
   --admin-input-bg: #f8fafc;
   --admin-modal-bg: #ffffff;
   --admin-toast-bg: #ffffff;
+  --admin-surface-subtle: #f3f4f6;
+  --admin-btn-bg: #ffffff;
+  --admin-btn-fg: #1e3a5f;
+  --admin-hover: #f1f5f9;
+  --admin-green-soft: #dcfce7;
+  --admin-red-soft: #fee2e2;
+  --admin-orange-soft: #ffedd5;
+  --admin-blue-soft: #dbeafe;
+  --admin-purple-soft: #ede9fe;
+  --admin-accent-soft: #fef3dc;
+  --admin-brand: #1e3a5f;
+  --admin-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --admin-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 html.dark {
@@ -62,16 +79,33 @@ html.dark {
   --employee-keypad: #57534e;
   --employee-progress-well: #292524;
   --employee-continue-bg: rgba(20, 184, 166, 0.12);
+  --epi-ring-track: rgba(255, 255, 255, 0.1);
+  --averda-link: #ffffff;
+  --averda-link-hover: rgba(255, 255, 255, 0.82);
 
   /* Admin main — dark */
   --admin-main-bg: #0d1117;
-  --admin-card: #161b22;
+  --admin-dashboard-bg: #0d1117;
+  --admin-card: #1a2236;
   --admin-border: #30363d;
   --admin-fg: #f3f4f6;
   --admin-muted: #9ca3af;
   --admin-input-bg: #0d1117;
-  --admin-modal-bg: #0d1117;
-  --admin-toast-bg: #161b22;
+  --admin-modal-bg: #1a2236;
+  --admin-toast-bg: #1a2236;
+  --admin-surface-subtle: #21262d;
+  --admin-btn-bg: #1a2236;
+  --admin-btn-fg: #f3f4f6;
+  --admin-hover: #21262d;
+  --admin-green-soft: rgba(22, 163, 74, 0.18);
+  --admin-red-soft: rgba(220, 38, 38, 0.18);
+  --admin-orange-soft: rgba(234, 88, 12, 0.18);
+  --admin-blue-soft: rgba(37, 99, 235, 0.18);
+  --admin-purple-soft: rgba(76, 29, 149, 0.22);
+  --admin-accent-soft: rgba(232, 160, 32, 0.15);
+  --admin-brand: #93c5fd;
+  --admin-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --admin-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 /* Scrollbars hidden visually; overflow stays scrollable (wheel, keyboard, touch). No overflow:hidden here. */
@@ -117,4 +151,46 @@ body::-webkit-scrollbar {
 
 .rtl\:mirror[data-dir="rtl"] .flip-rtl {
   transform: scaleX(-1);
+}
+
+/* Course cards — follow employee theme tokens (light + dark) */
+.course-card-shell {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+html.dark .course-card-shell {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+}
+
+html.dark .epi-item-row {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* Quiz cards — follow employee theme tokens (light + dark) */
+.quiz-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+html.dark .quiz-card {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* « Voir tout » / See all — high contrast on dark backgrounds */
+.see-all-link {
+  color: var(--averda-link);
+  font-weight: 800;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.see-all-link:hover {
+  color: var(--averda-link-hover);
+}
+
+html.dark .see-all-link {
+  text-shadow: none;
+}
+
+/* Notifications: icon bubble backgrounds are light by default; tone down in dark mode */
+html.dark .notif-icon {
+  filter: brightness(0.85) saturate(0.9);
 }

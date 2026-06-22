@@ -1,7 +1,11 @@
 import { prisma } from "../lib/prisma.js";
 
 /** Matches client `CATEGORIES_WITHOUT_COURSES_YET` in DashboardPage.tsx */
-const CATEGORIES_WITHOUT_COURSES_YET = new Set(["parkAgent", "maintenance"]);
+export const CATEGORIES_WITHOUT_COURSES_YET = new Set(["parkAgent", "maintenance"]);
+
+export function isCategoryWithoutCoursesYet(code: string | null | undefined): boolean {
+  return code != null && CATEGORIES_WITHOUT_COURSES_YET.has(code);
+}
 
 /**
  * Active courses shown in admin «الدورات» tab (excludes roles with no catalog yet).

@@ -13,6 +13,7 @@ import { translatedEmployeeBadgeName } from "@/i18n/badgeName";
 import { buildEpiProgress } from "@/utils/epiProgress";
 import { FOCUS_EPI_EVENT, type FocusEpiLocationState } from "@/utils/employeeEpiFocus";
 import { CertificateButton } from "@/components/employee/CertificateButton";
+import { displayEmployeeName } from "@/utils/displayEmployeeName";
 
 type MePayload = {
   user: {
@@ -140,6 +141,7 @@ export function ProfilePage() {
 
   const emp = state.kind === "employee" ? state.user : null;
   const lang = i18n.language.startsWith("ar") ? "ar" : i18n.language.startsWith("fr") ? "fr" : "en";
+  const employeeDisplayName = me ? displayEmployeeName(me.user.name, lang) : "";
   const categoryMeta = useMemo(() => getCategoryDefByCode(me?.user.category?.code), [me?.user.category?.code]);
   const badgeRows = useMemo(() => {
     const rows = me?.user.badges ?? [];
@@ -201,11 +203,14 @@ export function ProfilePage() {
               categoryCode={me.user.category?.code ?? null}
               employeeId={me.user.employeeId}
               className="h-16 w-16 ring-1 ring-black/10 dark:ring-white/20"
-              title={me.user.name}
+              title={employeeDisplayName}
             />
-            <div className="min-w-0 text-right">
+            <div
+              className={`min-w-0 flex-1 ${lang === "ar" ? "text-right" : "text-left"}`}
+              dir={lang === "ar" ? "rtl" : "ltr"}
+            >
               <div className="truncate text-[26px] font-extrabold tracking-[-0.6px] leading-[1.15] text-[#1C1917] dark:text-[#F5F5F4]">
-                {me.user.name}
+                {employeeDisplayName}
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {categoryMeta ? (
@@ -238,7 +243,12 @@ export function ProfilePage() {
             timeSpentSecs={me.progress.totalTimeSpentSecs ?? 0}
             passportItems={epiSummary?.passport ?? []}
             badgeIcons={[
-              ...(badgeRows.slice(0, 8).map((ub) => ({ icon: ub.badge.icon, earned: true, key: ub.badge.key })) ?? []),
+              ...(badgeRows.slice(0, 8).map((ub) => ({
+                icon: ub.badge.icon,
+                earned: true,
+                key: ub.badge.key,
+                title: ub.badge.title,
+              })) ?? []),
               // placeholder locked slots
               ...Array.from({ length: Math.max(0, 8 - Math.min(8, badgeRows.length)) }).map((_, i) => ({
                 icon: "🏅",
@@ -262,10 +272,10 @@ export function ProfilePage() {
             </div>
             <div className="min-w-0">
               <div className="truncate text-[16px] font-extrabold text-[#1C1917] dark:text-[#F5F5F4]">
-                إنجازاتي
+                {t("employee.profile.achievementsTitle")}
               </div>
               <div className="mt-1 text-[13px] font-semibold text-[#57534E] dark:text-stone-400">
-                تحميل شهادة إتمام التدريب عند استيفاء الشروط
+                {t("employee.profile.achievementsSubtitle")}
               </div>
             </div>
           </div>
@@ -276,7 +286,7 @@ export function ProfilePage() {
             allCoursesCompleted={(me.progress.coursesTotal ?? 0) > 0 && (me.progress.coursesCompleted ?? 0) >= (me.progress.coursesTotal ?? 0)}
             avgScore={me.progress.avgQuizScore ?? 0}
             employee={{
-              name: me.user.name,
+              name: employeeDisplayName,
               role: categoryMeta?.label[lang as "ar" | "fr" | "en"] ?? "—",
               completionDate: new Date().toISOString(),
             }}
@@ -329,7 +339,7 @@ export function ProfilePage() {
                 <div
                   className="relative grid h-16 w-16 shrink-0 place-items-center rounded-full"
                   style={{
-                    background: `conic-gradient(#1a3a6e ${pct * 3.6}deg, rgba(0,0,0,0.08) 0deg)`,
+                    background: `conic-gradient(#1a3a6e ${pct * 3.6}deg, var(--epi-ring-track, rgba(0,0,0,0.08)) 0deg)`,
                   }}
                   aria-hidden
                 >
@@ -402,7 +412,7 @@ export function ProfilePage() {
           right={
             <Link
               to="/badges"
-              className="inline-flex min-h-[44px] items-center rounded-xl px-3 text-[13px] font-semibold text-averda transition hover:bg-averda/10 active:scale-[0.97]"
+              className="see-all-link inline-flex min-h-[44px] items-center rounded-xl px-3 text-[14px] transition hover:bg-averda/10 active:scale-[0.97] dark:hover:bg-white/10"
             >
               {t("employee.seeAll")}
             </Link>

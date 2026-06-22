@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { adminApi } from "@/api/api";
 import { getStatusLabel } from "@/utils/epiStatus";
+import { useDashboardI18n } from "@/pages/admin/dashboardI18n";
 
 const NAVY = "#1e3a5f";
 
@@ -32,6 +33,7 @@ type Props = {
 };
 
 export function IssueEpiModal({ open, employee, initialSelectedCodes, onClose, onIssued, onError }: Props) {
+  const { nameOf } = useDashboardI18n();
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -123,7 +125,7 @@ export function IssueEpiModal({ open, employee, initialSelectedCodes, onClose, o
             <div>
               <h2 className="text-lg font-extrabold">إرسال معدات EPI</h2>
               <p className="mt-1 text-xs text-white/75">
-                {employee.name} • {employee.employeeCode}
+                {nameOf(employee.name)} • {employee.employeeCode}
               </p>
             </div>
             <button

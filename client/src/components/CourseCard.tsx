@@ -96,7 +96,7 @@ export function CourseCard({
     return (
       <div className={className}>
         <div
-          className="group relative w-full"
+          className="group relative w-full course-card-shell"
           style={{
             ...courseCardWrapperStyle,
             cursor: "not-allowed",
@@ -148,7 +148,7 @@ export function CourseCard({
     <div className={className}>
       <Link
         to={`/courses/${course.id}`}
-        className="relative block w-full no-underline transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
+        className="course-card-shell relative block w-full no-underline transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
         style={courseCardWrapperStyle}
       >
         {cardContent}

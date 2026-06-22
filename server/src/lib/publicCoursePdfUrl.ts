@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // publicCoursePdfUrl.ts
 // FIX: effectiveEmployeePdfUrl must return a RELATIVE path like "/courses/..."
-//      not "http://localhost:3001/courses/..." which bypasses the Vite proxy.
+//      not "http://localhost:3011/courses/..." which bypasses the Vite proxy.
 // ─────────────────────────────────────────────────────────────────────────────
 import path from "path";
 import { fileURLToPath } from "url";

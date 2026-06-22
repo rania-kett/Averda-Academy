@@ -1,8 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Copy, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import {
+  ArrowLeft,
+  Bot,
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
+  Info,
+  Loader2,
+  Mic,
+  Settings,
+  X,
+} from "lucide-react";
 import { adminApi } from "@/api/api";
 import { useToast } from "@/context/ToastContext";
 import { adminCard, adminMuted, adminStrong } from "@/components/admin/adminClasses";
+import { resolveCurrentLng } from "@/i18n/persistLanguage";
 
 type SettingKey = "ANTHROPIC_API_KEY" | "ELEVENLABS_API_KEY";
 
@@ -22,34 +36,39 @@ type SettingsPayload = {
   };
 };
 
-const KEY_UI: Record<
-  SettingKey,
-  { title: string; subtitle: string; placeholder: string; hint?: string }
-> = {
-  ANTHROPIC_API_KEY: {
-    title: "مفتاح الذكاء الاصطناعي 🤖",
-    subtitle: "لتوليد أسئلة الاختبارات تلقائياً وترجمة المحتوى",
-    placeholder: "sk-ant-api...",
-  },
-  ELEVENLABS_API_KEY: {
-    title: "مفتاح الصوت والنطق 🎙️",
-    subtitle: "لتحويل نص الدورات والأسئلة إلى صوت مسموع",
-    placeholder: "sk_...",
-    hint: "المفتاح يبدأ بـ: sk_...",
-  },
-};
-
 function StatusBadge({ meta, tested }: { meta: KeyMeta; tested: "idle" | "ok" | "fail" }) {
+  const { t } = useTranslation();
+
   if (tested === "ok") {
-    return <span className="text-[13px] font-bold text-emerald-600">✅ متصل ويعمل</span>;
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[13px] font-bold text-emerald-600 dark:text-emerald-400">
+        <Check className="h-4 w-4 shrink-0" aria-hidden />
+        {t("admin.settings.statusConnected")}
+      </span>
+    );
   }
   if (tested === "fail") {
-    return <span className="text-[13px] font-bold text-red-600">❌ فشل الاتصال</span>;
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[13px] font-bold text-red-600 dark:text-red-400">
+        <X className="h-4 w-4 shrink-0" aria-hidden />
+        {t("admin.settings.statusFailed")}
+      </span>
+    );
   }
   if (meta.configured) {
-    return <span className="text-[13px] font-bold text-emerald-600">✅ مُفعَّل</span>;
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[13px] font-bold text-emerald-600 dark:text-emerald-400">
+        <Check className="h-4 w-4 shrink-0" aria-hidden />
+        {t("admin.settings.statusConfigured")}
+      </span>
+    );
   }
-  return <span className="text-[13px] font-bold text-red-600">❌ غير مُعيَّن</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[13px] font-bold text-red-600 dark:text-red-400">
+      <X className="h-4 w-4 shrink-0" aria-hidden />
+      {t("admin.settings.statusNotConfigured")}
+    </span>
+  );
 }
 
 function KeySection({
@@ -61,18 +80,35 @@ function KeySection({
   meta: KeyMeta;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   const toast = useToast();
-  const ui = KEY_UI[settingKey];
   const [value, setValue] = useState("");
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [tested, setTested] = useState<"idle" | "ok" | "fail">("idle");
 
+  const ui =
+    settingKey === "ANTHROPIC_API_KEY"
+      ? {
+          title: t("admin.settings.anthropicTitle"),
+          subtitle: t("admin.settings.anthropicSubtitle"),
+          placeholder: "sk-ant-api...",
+          hint: undefined as string | undefined,
+          Icon: Bot,
+        }
+      : {
+          title: t("admin.settings.elevenlabsTitle"),
+          subtitle: t("admin.settings.elevenlabsSubtitle"),
+          placeholder: "sk_...",
+          hint: t("admin.settings.elevenlabsHint"),
+          Icon: Mic,
+        };
+
   const save = async () => {
     const v = value.trim();
     if (v.length < 8) {
-      toast("أدخل مفتاحاً صالحاً (8 أحرف على الأقل)", "error");
+      toast(t("admin.settings.keyTooShort"), "error");
       return;
     }
     setSaving(true);
@@ -80,10 +116,10 @@ function KeySection({
       await adminApi.saveSetting(settingKey, v);
       setValue("");
       setTested("idle");
-      toast("تم حفظ المفتاح بنجاح ✅", "success");
+      toast(t("admin.settings.keySaved"), "success");
       onSaved();
     } catch {
-      toast("تعذر حفظ المفتاح", "error");
+      toast(t("admin.settings.keySaveFailed"), "error");
     } finally {
       setSaving(false);
     }
@@ -97,10 +133,13 @@ function KeySection({
       const ok = Boolean((data as { success?: boolean }).success);
       setTested(ok ? "ok" : "fail");
       const msg = String((data as { message?: string }).message ?? "");
-      toast(ok ? "✅ الاتصال ناجح" : `❌ ${msg || "فشل الاتصال"}`, ok ? "success" : "error");
+      toast(
+        ok ? t("admin.settings.testOk") : msg || t("admin.settings.testFailed"),
+        ok ? "success" : "error"
+      );
     } catch {
       setTested("fail");
-      toast("❌ فشل اختبار الاتصال", "error");
+      toast(t("admin.settings.testFailed"), "error");
     } finally {
       setTesting(false);
     }
@@ -110,15 +149,18 @@ function KeySection({
     if (!meta.masked) return;
     try {
       await navigator.clipboard.writeText(meta.masked);
-      toast("تم النسخ", "success");
+      toast(t("admin.settings.copied"), "success");
     } catch {
-      toast("تعذر النسخ", "error");
+      toast(t("admin.settings.copyFailed"), "error");
     }
   };
 
   return (
     <section className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-[#161B22] ${adminCard}`}>
-      <h2 className={`text-lg font-extrabold text-[#1e3a5f] dark:text-white`}>{ui.title}</h2>
+      <h2 className="flex items-center gap-2 text-lg font-extrabold text-[#1e3a5f] dark:text-white">
+        <ui.Icon className="h-5 w-5 shrink-0" aria-hidden />
+        {ui.title}
+      </h2>
       <p className={`mt-1 text-sm ${adminMuted}`}>{ui.subtitle}</p>
       {ui.hint ? <p className={`mt-1 text-xs ${adminMuted}`}>{ui.hint}</p> : null}
 
@@ -133,25 +175,25 @@ function KeySection({
       </div>
 
       <div className="mt-4 space-y-3">
-        <div className="relative">
+        <div className="relative" dir="ltr">
           <input
             type={show ? "text" : "password"}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={ui.placeholder}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-4 pr-[4.5rem] font-mono text-sm text-slate-900 outline-none transition focus:border-[#1e3a5f] focus:ring-2 focus:ring-[#1e3a5f]/15 dark:border-slate-600 dark:bg-[#0D1117] dark:text-white"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 ps-4 pe-[4.5rem] font-mono text-sm text-slate-900 outline-none transition focus:border-[#1e3a5f] focus:ring-2 focus:ring-[#1e3a5f]/15 dark:border-slate-600 dark:bg-[#0D1117] dark:text-white"
             dir="ltr"
             autoComplete="off"
             spellCheck={false}
           />
-          <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+          <div className="absolute end-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
             {meta.masked ? (
               <button
                 type="button"
                 onClick={() => void copyMasked()}
                 className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-200/80 hover:text-slate-600 dark:hover:bg-white/10"
-                title="نسخ المعاينة"
-                aria-label="نسخ المعاينة"
+                title={t("admin.settings.copyPreview")}
+                aria-label={t("admin.settings.copyPreview")}
               >
                 <Copy className="h-4 w-4" />
               </button>
@@ -160,8 +202,8 @@ function KeySection({
               type="button"
               onClick={() => setShow((s) => !s)}
               className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-200/80 hover:text-slate-600 dark:hover:bg-white/10"
-              title={show ? "إخفاء" : "إظهار"}
-              aria-label={show ? "إخفاء" : "إظهار"}
+              title={show ? t("admin.settings.hide") : t("admin.settings.show")}
+              aria-label={show ? t("admin.settings.hide") : t("admin.settings.show")}
             >
               {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -175,7 +217,7 @@ function KeySection({
             disabled={saving || !value.trim()}
             className="rounded-xl bg-[#1e3a5f] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#163056] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? "جاري الحفظ…" : "حفظ"}
+            {saving ? t("admin.settings.saving") : t("admin.settings.save")}
           </button>
           <button
             type="button"
@@ -186,10 +228,10 @@ function KeySection({
             {testing ? (
               <span className="inline-flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                اختبار…
+                {t("admin.settings.testing")}
               </span>
             ) : (
-              "اختبار الاتصال"
+              t("admin.settings.testConnection")
             )}
           </button>
         </div>
@@ -205,8 +247,11 @@ export function SettingsView({
   embedded?: boolean;
   onBack?: () => void;
 }) {
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<SettingsPayload | null>(null);
+  const isRTL = resolveCurrentLng(i18n.language) === "ar";
+  const locale = isRTL ? "ar-MA" : i18n.language.startsWith("fr") ? "fr-FR" : "en-US";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -233,21 +278,24 @@ export function SettingsView({
   }
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={isRTL ? "rtl" : "ltr"}>
       {embedded && onBack ? (
         <button
           type="button"
           onClick={onBack}
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-[#1e3a5f] shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-[#161B22] dark:text-white dark:hover:bg-[#1C2128]"
         >
-          <ArrowRight className="h-4 w-4" aria-hidden />
-          العودة إلى لوحة التحكم
+          <ArrowLeft className="h-4 w-4 rtl:rotate-180" aria-hidden />
+          {t("admin.settings.backToDashboard")}
         </button>
       ) : null}
       {!embedded && (
         <div>
-          <h1 className={`text-2xl font-bold ${adminStrong}`}>⚙️ الإعدادات</h1>
-          <p className={`mt-2 text-sm ${adminMuted}`}>إدارة مفاتيح التكامل دون تعديل الكود</p>
+          <h1 className={`flex items-center gap-2 text-2xl font-bold ${adminStrong}`}>
+            <Settings className="h-6 w-6 shrink-0 text-[#1e3a5f] dark:text-white" aria-hidden />
+            {t("admin.settings.title")}
+          </h1>
+          <p className={`mt-2 text-sm ${adminMuted}`}>{t("admin.settings.subtitle")}</p>
         </div>
       )}
 
@@ -265,29 +313,32 @@ export function SettingsView({
           />
 
           <section className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-[#161B22] ${adminCard}`}>
-            <h2 className={`text-lg font-extrabold text-[#1e3a5f] dark:text-white`}>معلومات التطبيق ℹ️</h2>
+            <h2 className={`flex items-center gap-2 text-lg font-extrabold text-[#1e3a5f] dark:text-white`}>
+              <Info className="h-5 w-5 shrink-0" aria-hidden />
+              {t("admin.settings.appInfoTitle")}
+            </h2>
             <dl className={`mt-4 grid gap-4 sm:grid-cols-2 ${adminMuted}`}>
               <div>
-                <dt className="text-xs font-bold uppercase tracking-wide">اسم التطبيق</dt>
+                <dt className="text-xs font-bold uppercase tracking-wide">{t("admin.settings.appName")}</dt>
                 <dd className={`mt-1 text-base font-semibold ${adminStrong}`}>Averda Academy</dd>
               </div>
               <div>
-                <dt className="text-xs font-bold uppercase tracking-wide">الإصدار</dt>
+                <dt className="text-xs font-bold uppercase tracking-wide">{t("admin.settings.version")}</dt>
                 <dd className={`mt-1 text-base font-semibold ${adminStrong}`}>{data.appInfo.version}</dd>
               </div>
               <div>
-                <dt className="text-xs font-bold uppercase tracking-wide">عدد الموظفين</dt>
+                <dt className="text-xs font-bold uppercase tracking-wide">{t("admin.settings.employeeCount")}</dt>
                 <dd className={`mt-1 text-base font-semibold ${adminStrong}`}>{data.appInfo.employeeCount}</dd>
               </div>
               <div>
-                <dt className="text-xs font-bold uppercase tracking-wide">عدد الدورات (المعروضة)</dt>
+                <dt className="text-xs font-bold uppercase tracking-wide">{t("admin.settings.courseCount")}</dt>
                 <dd className={`mt-1 text-base font-semibold ${adminStrong}`}>{data.appInfo.courseCount}</dd>
               </div>
               <div>
-                <dt className="text-xs font-bold uppercase tracking-wide">آخر seed</dt>
+                <dt className="text-xs font-bold uppercase tracking-wide">{t("admin.settings.lastSeed")}</dt>
                 <dd className={`mt-1 text-base font-semibold ${adminStrong}`}>
                   {data.appInfo.lastSeedDate
-                    ? new Date(data.appInfo.lastSeedDate).toLocaleDateString("ar-MA")
+                    ? new Date(data.appInfo.lastSeedDate).toLocaleDateString(locale)
                     : "—"}
                 </dd>
               </div>
@@ -295,7 +346,7 @@ export function SettingsView({
           </section>
         </>
       ) : (
-        <p className={adminMuted}>تعذر تحميل الإعدادات. تأكد أن الخادم يعمل.</p>
+        <p className={adminMuted}>{t("admin.settings.loadError")}</p>
       )}
     </div>
   );

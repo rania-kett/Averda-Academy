@@ -275,15 +275,15 @@ export function LessonQuiz({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F1F5F9] text-[#64748B] transition hover:bg-[#E2E8F0] active:scale-[0.97]"
+            className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F1F5F9] text-[#64748B] transition hover:bg-[#E2E8F0] active:scale-[0.97] dark:bg-[#292524] dark:text-stone-400 dark:hover:bg-[#1e3a5f]/20"
             aria-label="إغلاق"
           >
             <X className="h-4 w-4" aria-hidden />
           </button>
 
           <div className="min-w-0 flex-1 text-right">
-            <div className="text-[18px] font-extrabold text-[#111827]">النتيجة</div>
-            <div className="mt-1 text-[13px] font-semibold text-[#64748B]" dir="ltr">
+            <div className="text-[18px] font-extrabold text-[#111827] dark:text-[#F5F5F4]">النتيجة</div>
+            <div className="mt-1 text-[13px] font-semibold text-[#64748B] dark:text-stone-400" dir="ltr">
               {correctCount}/{totalCount} • {resultPct}%
             </div>
           </div>
@@ -302,7 +302,7 @@ export function LessonQuiz({
           <button
             type="button"
             onClick={retry}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-[#E2E8F0] bg-white px-4 text-[13px] font-extrabold text-[#0F172A] transition hover:bg-slate-50 active:scale-[0.98]"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-[#E2E8F0] bg-white px-4 text-[13px] font-extrabold text-[#0F172A] transition hover:bg-slate-50 active:scale-[0.98] dark:border-[#44403C] dark:bg-[#292524] dark:text-[#F5F5F4] dark:hover:bg-[#1e3a5f]/10"
           >
             {retryLabel}
           </button>
@@ -330,26 +330,28 @@ export function LessonQuiz({
             return (
               <div
                 key={`${d.questionId}-${i}`}
-                className="rounded-2xl border border-[#E2E8F0] bg-white p-4"
+                className="quiz-card rounded-2xl border border-[#E2E8F0] bg-white p-4 dark:border-[#44403C] dark:bg-[#292524]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 flex-1 items-start gap-2">
                     <div
                       className={`grid h-7 w-7 place-items-center rounded-xl text-[12px] font-extrabold ${
-                        ok ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                        ok
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                          : "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300"
                       }`}
                       aria-hidden
                     >
                       {ok ? "✓" : "✕"}
                     </div>
-                    <div className="min-w-0 flex-1 text-[13px] font-extrabold leading-relaxed text-[#111827]">
+                    <div className="min-w-0 flex-1 text-[13px] font-extrabold leading-relaxed text-[#111827] dark:text-[#F5F5F4]">
                       {i + 1}. {qq?.text ?? `س${d.questionId}`}
                     </div>
                   </div>
                   <SoundButton ariaLabel="تشغيل الصوت" onClick={() => { /* TTS later */ }} />
                 </div>
 
-                <div className="mt-3 grid gap-2 text-[12px] font-semibold text-[#111827]">
+                <div className="mt-3 grid gap-2 text-[12px] font-semibold text-[#111827] dark:text-stone-300">
                   <div>
                     <span className="font-semibold">إجابتك:</span> {your}
                   </div>
@@ -358,9 +360,9 @@ export function LessonQuiz({
                   </div>
                 </div>
 
-                <div className="mt-3 rounded-[12px] border border-[#99F6E4] bg-[#F0FDFA] px-4 py-3">
-                  <div className="mb-1 text-[13px] font-semibold text-[#0F766E]">الشرح</div>
-                  <div className="text-[14px] leading-[1.6] text-[#374151]">{qq?.explanation ?? ""}</div>
+                <div className="mt-3 rounded-[12px] border border-[#99F6E4] bg-[#F0FDFA] px-4 py-3 dark:border-emerald-800/40 dark:bg-emerald-950/25">
+                  <div className="mb-1 text-[13px] font-semibold text-[#0F766E] dark:text-emerald-300">الشرح</div>
+                  <div className="text-[14px] leading-[1.6] text-[#374151] dark:text-stone-300">{qq?.explanation ?? ""}</div>
                 </div>
               </div>
             );
@@ -382,7 +384,7 @@ export function LessonQuiz({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F1F5F9] text-[#64748B] transition hover:bg-[#E2E8F0] active:scale-[0.97]"
+            className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F1F5F9] text-[#64748B] transition hover:bg-[#E2E8F0] active:scale-[0.97] dark:bg-[#292524] dark:text-stone-400 dark:hover:bg-[#1e3a5f]/20"
             aria-label="إغلاق"
           >
             <X className="h-4 w-4" aria-hidden />
@@ -393,7 +395,7 @@ export function LessonQuiz({
         </div>
       </div>
 
-      <div className="h-[6px] w-full overflow-hidden rounded-full bg-[#E2E8F0]">
+      <div className="h-[6px] w-full overflow-hidden rounded-full bg-[#E2E8F0] dark:bg-[#44403C]">
         <motion.div
           className="h-full bg-[#1e3a5f]"
           initial={{ width: 0 }}
@@ -407,21 +409,20 @@ export function LessonQuiz({
           initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -16 }}
-          className="rounded-2xl border border-[#E2E8F0] bg-white p-6"
-          style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+          className="quiz-card rounded-2xl border border-[#E2E8F0] bg-white p-6 dark:border-[#44403C] dark:bg-[#292524]"
         >
           {/* Force visual order: LEFT sound, RIGHT emoji (even in Arabic). */}
           <div className="flex items-start justify-between gap-3" dir="ltr">
             <SoundButton ariaLabel="تشغيل الصوت" onClick={() => { /* TTS later */ }} />
-            <p className="min-w-0 flex-1 text-[17px] font-medium leading-[1.75] text-[#111827]" dir="rtl" style={{ textAlign: "right" }}>
+            <p className="min-w-0 flex-1 text-[17px] font-medium leading-[1.75] text-[#111827] dark:text-[#F5F5F4]" dir="rtl" style={{ textAlign: "right" }}>
               {q.text}
             </p>
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#F8FAFC] text-[22px]" aria-hidden>
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#F8FAFC] text-[22px] dark:bg-white/10" aria-hidden>
               {q.emoji}
             </div>
           </div>
 
-          <div className="my-4 h-px w-full bg-[#F1F5F9]" />
+          <div className="my-4 h-px w-full bg-[#F1F5F9] dark:bg-[#44403C]" />
 
           {(() => {
             const grid = q.type === "tf" ? "grid grid-cols-2 gap-2" : "flex flex-col gap-2";
@@ -444,21 +445,21 @@ export function LessonQuiz({
 
                   if (!revealed) {
                     if (isSelected) {
-                      cls += "bg-[#1e3a5f]/10";
+                      cls += "bg-[#1e3a5f]/10 dark:bg-[#1e3a5f]/25";
                       style.borderColor = "#1e3a5f";
                     } else {
-                      cls += "bg-white hover:bg-[#F8FAFC]";
+                      cls += "bg-white hover:bg-[#F8FAFC] dark:bg-[#1C1917] dark:hover:bg-[#1e3a5f]/15";
                       style.borderColor = "#E2E8F0";
                     }
                   } else {
                     if (showSelectedCorrect || showMissedCorrect) {
-                      cls += "bg-[#ECFDF5] font-medium";
+                      cls += "bg-[#ECFDF5] font-medium dark:bg-emerald-950/35";
                       style.borderColor = "#16A34A";
                     } else if (showSelectedWrong) {
-                      cls += "bg-[#FEF2F2] font-medium";
+                      cls += "bg-[#FEF2F2] font-medium dark:bg-red-950/35";
                       style.borderColor = "#DC2626";
                     } else {
-                      cls += "bg-white";
+                      cls += "bg-white dark:bg-[#1C1917]";
                       style.borderColor = "#E2E8F0";
                     }
                   }
@@ -472,7 +473,7 @@ export function LessonQuiz({
                       className={cls}
                       style={style}
                     >
-                      <span className="min-w-0 flex-1 text-right leading-relaxed text-[#111827]">{opt}</span>
+                      <span className="min-w-0 flex-1 text-right leading-relaxed text-[#111827] dark:text-[#F5F5F4]">{opt}</span>
                       <span
                         className="grid h-5 w-5 shrink-0 place-items-center rounded-full"
                         aria-hidden
@@ -519,10 +520,10 @@ export function LessonQuiz({
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
-              className="mt-4 overflow-hidden rounded-[12px] border border-[#99F6E4] bg-[#F0FDFA] px-4 py-3"
+              className="mt-4 overflow-hidden rounded-[12px] border border-[#99F6E4] bg-[#F0FDFA] px-4 py-3 dark:border-emerald-800/40 dark:bg-emerald-950/25"
             >
-              <div className="mb-1 text-[13px] font-semibold text-[#0F766E]">الشرح</div>
-              <div className="text-[14px] leading-[1.6] text-[#374151]">{q.explanation}</div>
+              <div className="mb-1 text-[13px] font-semibold text-[#0F766E] dark:text-emerald-300">الشرح</div>
+              <div className="text-[14px] leading-[1.6] text-[#374151] dark:text-stone-300">{q.explanation}</div>
             </motion.div>
           )}
 
@@ -540,7 +541,7 @@ export function LessonQuiz({
           type="button"
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           disabled={step <= 0 || submitting}
-          className="min-w-[72px] px-2 text-[14px] font-medium text-[#374151] disabled:pointer-events-none disabled:text-[#CBD5E1]"
+          className="min-w-[72px] px-2 text-[14px] font-medium text-[#374151] disabled:pointer-events-none disabled:text-[#CBD5E1] dark:text-stone-300 dark:disabled:text-stone-600"
         >
           السابق
         </button>
@@ -558,7 +559,7 @@ export function LessonQuiz({
           type="button"
           onClick={() => void goNext()}
           disabled={!revealed || submitting}
-          className="min-h-[44px] min-w-[92px] rounded-[12px] border border-[#E2E8F0] bg-white px-3 text-[14px] font-medium text-[#374151] transition hover:bg-[#F8FAFC] hover:border-[#CBD5E1] disabled:pointer-events-none disabled:text-[#CBD5E1]"
+          className="min-h-[44px] min-w-[92px] rounded-[12px] border border-[#E2E8F0] bg-white px-3 text-[14px] font-medium text-[#374151] transition hover:bg-[#F8FAFC] hover:border-[#CBD5E1] disabled:pointer-events-none disabled:text-[#CBD5E1] dark:border-[#44403C] dark:bg-[#292524] dark:text-[#F5F5F4] dark:hover:bg-[#1e3a5f]/10 dark:disabled:text-stone-600"
         >
           {submitting ? "جاري الحفظ…" : step >= total - 1 ? "إنهاء" : "التالي"}
         </button>

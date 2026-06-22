@@ -6,7 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import AverdaLogo from "@/assets/averda_logo.png";
-import { applyDocumentDirection } from "@/i18n/i18n";
+import { persistAppLanguage as persistLang, resolveCurrentLng } from "@/i18n/persistLanguage";
 import { userApi } from "@/api/api";
 import { getNotifStyle, inferNotifType } from "@/utils/notificationStyle";
 import {
@@ -313,17 +313,12 @@ export function EmployeeLayout() {
     { code: "ar" as const, flagSrc: "/flags/ma.svg", label: "AR" },
   ] as const;
 
-  const currentLng = i18n.language.startsWith("ar")
-    ? "ar"
-    : i18n.language.startsWith("fr")
-      ? "fr"
-      : "en";
+  const currentLng = resolveCurrentLng(i18n.language);
   const isRTL = currentLng === "ar";
 
   const persistAppLanguage = useCallback(
     async (code: "ar" | "fr" | "en") => {
-      void i18n.changeLanguage(code);
-      applyDocumentDirection(code);
+      persistLang(code);
       if (state.kind === "employee") {
         const L = code === "ar" ? "AR" : code === "fr" ? "FR" : "EN";
         try {
@@ -334,28 +329,17 @@ export function EmployeeLayout() {
         }
       }
     },
-    [i18n, state.kind, updateEmployeeUser]
+    [state.kind, updateEmployeeUser]
   );
 
   const openNotifications = useCallback(async () => {
-    let fetched: typeof notifications = [];
     try {
       setNotifLoading(true);
       const { data } = await userApi.notifications();
       const rows = (data as { notifications: typeof notifications }).notifications;
-      fetched = rows;
       setNotifications(rows);
     } finally {
       setNotifLoading(false);
-    }
-    const unread = fetched.reduce((n, x) => n + (x.isRead ? 0 : 1), 0);
-    if (unread > 0) {
-      try {
-        await userApi.readAllNotifications();
-        setNotifications((ns) => ns.map((n) => ({ ...n, isRead: true })));
-      } catch {
-        // ignore
-      }
     }
   }, []);
 
@@ -427,6 +411,15 @@ export function EmployeeLayout() {
     [notifications]
   );
 
+  const markAllNotificationsRead = useCallback(async () => {
+    try {
+      await userApi.readAllNotifications();
+      setNotifications((ns) => ns.map((n) => ({ ...n, isRead: true })));
+    } catch {
+      toast(t("common.error"), "error");
+    }
+  }, [t, toast]);
+
   useEffect(() => {
     if (!emp) return;
     let alive = true;
@@ -476,6 +469,7 @@ export function EmployeeLayout() {
     const { icon, bg } = getNotifStyle(inferNotifType(n), title);
     return (
       <div
+        className="notif-icon"
         style={{
           width: "36px",
           height: "36px",
@@ -696,24 +690,7 @@ export function EmployeeLayout() {
               onClick={async () => {
                 const next = !notifOpen;
                 setNotifOpen(next);
-                if (!next) return;
-                try {
-                  setNotifLoading(true);
-                  const { data } = await userApi.notifications();
-                  const rows = (data as { notifications: typeof notifications }).notifications;
-                  setNotifications(rows);
-                } finally {
-                  setNotifLoading(false);
-                }
-                // When opened, mark as read (visible list)
-                if (unreadCount > 0) {
-                  try {
-                    await userApi.readAllNotifications();
-                    setNotifications((ns) => ns.map((n) => ({ ...n, isRead: true })));
-                  } catch {
-                    // ignore
-                  }
-                }
+                if (next) await openNotifications();
               }}
             >
               <Bell className="h-5 w-5" aria-hidden />
@@ -736,45 +713,42 @@ export function EmployeeLayout() {
             {notifOpen && (
               <div
                 ref={menuRef}
-                className="absolute end-4 top-[calc(100%+8px)] z-50 w-[min(92vw,420px)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl shadow-black/10 dark:border-[#30363D] dark:bg-[#0D1117)"
+                className="absolute end-4 top-[calc(100%+8px)] z-50 w-[min(92vw,420px)] overflow-hidden rounded-2xl border border-employee-border bg-employee-card shadow-2xl shadow-black/10"
                 dir={isRTL ? "rtl" : "ltr"}
               >
-                <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-[#30363D]">
+                <div className="flex items-center justify-between gap-3 border-b border-employee-border px-4 py-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <p className="truncate text-sm font-semibold text-employee-fg">
                       {notifUi.header}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await userApi.readAllNotifications();
-                        setNotifications((ns) => ns.map((n) => ({ ...n, isRead: true })));
-                      } catch {
-                        toast(t("common.error"), "error");
-                      }
-                    }}
-                    className="rounded-full bg-averda/10 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-all duration-200 ease-in-out hover:bg-averda/15 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-averda/25"
-                  >
-                    {notifUi.markAll}
-                  </button>
+                  {unreadCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => void markAllNotificationsRead()}
+                      className="rounded-full bg-averda/10 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-all duration-200 ease-in-out hover:bg-averda/15 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-averda/25"
+                    >
+                      {notifUi.markAll}
+                    </button>
+                  ) : (
+                    <span className="w-[1px]" aria-hidden />
+                  )}
                 </div>
 
                 <div className="max-h-[60vh] overflow-y-auto">
                   {notifLoading ? (
-                    <div className="p-6 text-sm text-slate-500 dark:text-slate-300">
+                    <div className="p-6 text-sm text-employee-muted">
                       {t("common.loading")}
                     </div>
                   ) : notifications.length === 0 ? (
                     <div className="flex flex-col items-center justify-center gap-2 p-8 text-center">
                       <Bell className="h-6 w-6 text-slate-400 dark:text-slate-500" />
-                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                      <p className="text-sm text-employee-muted">
                         {notifUi.empty}
                       </p>
                     </div>
                   ) : (
-                    <ul className="divide-y divide-gray-100 dark:divide-white/10">
+                    <ul className="divide-y divide-employee-border">
                       {notifications.map((n) => {
                         const title =
                           n.title?.[currentLng] ?? n.title?.en ?? n.title?.fr ?? n.title?.ar ?? "—";
@@ -783,7 +757,7 @@ export function EmployeeLayout() {
                         return (
                           <li
                             key={n.id}
-                            className={`px-4 py-3 transition-all duration-200 ease-in-out hover:bg-averda/10 dark:hover:bg-averda/20 ${
+                            className={`px-4 py-3 transition-all duration-200 ease-in-out hover:bg-employee-hover ${
                               n.isRead ? "" : "border-s-4 border-accent-indigo"
                             }`}
                           >
@@ -794,10 +768,10 @@ export function EmployeeLayout() {
                             >
                               {renderNotifIcon(n)}
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                <p className="truncate text-sm font-semibold text-employee-fg">
                                   {title}
                                 </p>
-                                <p className="mt-0.5 line-clamp-2 text-sm text-slate-600 dark:text-slate-300">
+                                <p className="mt-0.5 line-clamp-2 text-sm text-employee-muted">
                                   {message}
                                 </p>
                               </div>
@@ -954,7 +928,7 @@ export function EmployeeLayout() {
             onClick={() => setNotifMobileOpen(false)}
           />
           <div
-            className="absolute bottom-0 left-0 right-0 rounded-t-3xl border-t border-[#E7E5E4] bg-white shadow-2xl dark:border-[#30363D] dark:bg-[#0D1117]"
+            className="absolute bottom-0 left-0 right-0 rounded-t-3xl border-t border-employee-border bg-employee-card shadow-2xl"
             style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
             role="dialog"
             aria-label={t("common.notifications")}
@@ -972,20 +946,17 @@ export function EmployeeLayout() {
               <div className="text-lg font-extrabold text-[#1C1917] dark:text-[#F5F5F4]">
                 {notifUi.header}
               </div>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await userApi.readAllNotifications();
-                    setNotifications((ns) => ns.map((n) => ({ ...n, isRead: true })));
-                  } catch {
-                    toast(t("common.error"), "error");
-                  }
-                }}
-                className="rounded-full bg-averda/10 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-averda/15 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-averda/25"
-              >
-                {notifUi.markAll}
-              </button>
+              {unreadCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => void markAllNotificationsRead()}
+                  className="rounded-full bg-averda/10 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-averda/15 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-averda/25"
+                >
+                  {notifUi.markAll}
+                </button>
+              ) : (
+                <span className="w-10" aria-hidden />
+              )}
             </div>
 
             <div className="mt-4 max-h-[60vh] overflow-y-auto px-5 pb-2">
@@ -999,7 +970,7 @@ export function EmployeeLayout() {
                   <p className="text-sm text-[#57534E] dark:text-stone-400">{notifUi.empty}</p>
                 </div>
               ) : (
-                <ul className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-[#E7E5E4] bg-white dark:divide-white/10 dark:border-[#30363D] dark:bg-[#0D1117]">
+                <ul className="divide-y divide-employee-border overflow-hidden rounded-2xl border border-employee-border bg-employee-card">
                   {notifications.map((n) => {
                     const title = n.title?.[currentLng] ?? n.title?.en ?? n.title?.fr ?? n.title?.ar ?? "—";
                     const message =
@@ -1007,7 +978,7 @@ export function EmployeeLayout() {
                     return (
                       <li
                         key={n.id}
-                        className={`px-4 py-3 transition hover:bg-averda/10 dark:hover:bg-averda/20 ${
+                        className={`px-4 py-3 transition hover:bg-employee-hover ${
                           n.isRead ? "" : "border-s-4 border-averda"
                         }`}
                       >

@@ -8,6 +8,7 @@ import { AppError } from "../middleware/errorHandler.js";
 import { evaluateBadgesAfterLessonComplete } from "../services/badgeService.js";
 import { isHsseqIntroCourse, isLessonQuizCourse } from "../data/courseVisibility.js";
 import { effectiveEmployeePdfUrl } from "../lib/publicCoursePdfUrl.js";
+import { isCategoryWithoutCoursesYet } from "../utils/adminCourseVisibility.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -30,9 +31,16 @@ router.get("/", async (req, res, next) => {
   try {
     const { userId, role } = (req as AuthedRequest).user;
     if (role !== "EMPLOYEE") throw new AppError(403, "Forbidden");
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { category: true },
+    });
     if (!user) throw new AppError(404, "User not found");
     if (!user.categoryId) throw new AppError(400, "User category not set");
+    if (isCategoryWithoutCoursesYet(user.category?.code)) {
+      res.json({ courses: [] });
+      return;
+    }
     const courses = await prisma.course.findMany({
       where: { isActive: true },
       orderBy: { order: "asc" },
@@ -137,9 +145,15 @@ router.get(
       }
       const { userId, role } = (req as AuthedRequest).user;
       if (role !== "EMPLOYEE") throw new AppError(403, "Forbidden");
-      const user = await prisma.user.findUnique({ where: { id: userId } });
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { category: true },
+      });
       if (!user) throw new AppError(404, "User not found");
       if (!user.categoryId) throw new AppError(400, "User category not set");
+      if (isCategoryWithoutCoursesYet(user.category?.code)) {
+        throw new AppError(403, "Forbidden");
+      }
       const course = await prisma.course.findUnique({
         where: { id: req.params!.id! },
         include: {

@@ -2,9 +2,12 @@ import { Router } from "express";
 import fs from "fs";
 import path from "path";
 import { body, param, query, validationResult } from "express-validator";
-import type { Prisma } from "@prisma/client";
-import { Prisma as PrismaNs } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+
+type UserWhereInput = NonNullable<
+  NonNullable<Parameters<typeof prisma.user.findMany>[0]>["where"]
+>;
+type PrismaTransaction = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 type EmployeeIdDb = Pick<typeof prisma, "user">;
 import type { AuthedRequest } from "../middleware/auth.js";
@@ -28,6 +31,7 @@ import {
 } from "../services/notificationService.js";
 // import { ensureEpiDataForAllActiveEmployees, syncEpiCanonicalSeedIfEmpty } from "../services/epiCanonicalSeed.js";
 import { getEpiSummaryForUserId } from "../services/epiSummaryService.js";
+import { isCategoryWithoutCoursesYet } from "../utils/adminCourseVisibility.js";
 import {
   ALLOWED_SETTING_KEYS,
   type AllowedSettingKey,
@@ -41,15 +45,24 @@ const router = Router();
 router.use(authMiddleware);
 router.use(adminOnly);
 
+function isPrismaKnownRequestError(e: unknown): e is { code: string } {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    typeof (e as { code: unknown }).code === "string"
+  );
+}
+
 function isMissingTable(e: unknown): boolean {
-  return e instanceof PrismaNs.PrismaClientKnownRequestError && e.code === "P2021";
+  return isPrismaKnownRequestError(e) && e.code === "P2021";
 }
 
 function isEpiSchemaNotReady(e: unknown): boolean {
-  if (e instanceof PrismaNs.PrismaClientKnownRequestError) {
-    if (e.code === "P2021" || e.code === "P2022") return true;
+  if (isPrismaKnownRequestError(e) && (e.code === "P2021" || e.code === "P2022")) {
+    return true;
   }
-  const msg = String((e as any)?.message ?? "");
+  const msg = e instanceof Error ? e.message : String(e ?? "");
   return (
     msg.includes("does not exist") ||
     msg.includes("no such table") ||
@@ -409,7 +422,7 @@ function employeeGroupFromCategoryCode(code: string | null | undefined): "DRIVER
 }
 
 function applyEmployeeGroupRoleFilter(
-  where: Prisma.UserWhereInput,
+  where: UserWhereInput,
   groupOrRole: string | undefined
 ): void {
   const raw = (groupOrRole ?? "").trim();
@@ -454,7 +467,7 @@ router.get(
       const roleFilter = (q.role as string | undefined)?.trim();
       const status = (q.status as string) || "all";
 
-      const where: Prisma.UserWhereInput = {
+      const where: UserWhereInput = {
         role: "EMPLOYEE",
       };
       if (search) {
@@ -483,8 +496,8 @@ router.get(
         },
       });
 
-      const coursesForCategory = async (cid: string | null) => {
-        if (!cid) return [];
+      const coursesForCategory = async (cid: string | null, categoryCode?: string | null) => {
+        if (!cid || isCategoryWithoutCoursesYet(categoryCode)) return [];
         return prisma.course.findMany({
           where: { isActive: true, categories: { some: { categoryId: cid } } },
           select: {
@@ -499,7 +512,7 @@ router.get(
 
       const enriched = [];
       for (const u of users) {
-        const assigned = await coursesForCategory(u.categoryId ?? null);
+        const assigned = await coursesForCategory(u.categoryId ?? null, u.category?.code);
         const visibleForProgress = visibleCoursesForEmployee(
           assigned,
           u.assessmentCompleted,
@@ -606,7 +619,7 @@ router.post(
       const colors = ["#6366F1", "#10B981", "#F59E0B", "#EC4899", "#14B8A6"];
       const avatarColor = colors[Math.floor(Math.random() * colors.length)]!;
       const hashed = await hashPin(pin);
-      const user = await prisma.$transaction(async (tx) => {
+      const user = await prisma.$transaction(async (tx: PrismaTransaction) => {
         const categoryCode = categoryCodeFromEmployeeRole(role ?? group);
         const cat = categoryId
           ? await tx.category.findUnique({ where: { id: categoryId } })
@@ -1036,7 +1049,7 @@ router.get(
       const skip = (page - 1) * take;
       const search = (q.search as string | undefined)?.trim();
 
-      const where: Prisma.UserWhereInput = {
+      const where: UserWhereInput = {
         role: "EMPLOYEE",
         isActive: true,
       };
@@ -1318,7 +1331,7 @@ router.patch("/epi/requests/:id/approve", param("id").isString(), async (req, re
     if (existing.status !== "pending") throw new AppError(400, "Request already processed");
 
     const today = new Date();
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: PrismaTransaction) => {
       await tx.epiRenewalRequest.update({
         where: { id: existing.id },
         data: { status: "approved", processedAt: today },
@@ -1768,7 +1781,7 @@ router.get(
       const skip = (page - 1) * take;
       const search = (q.search as string | undefined)?.trim();
 
-      const where: Prisma.UserWhereInput = {
+      const where: UserWhereInput = {
         role: "EMPLOYEE",
         isActive: true,
       };

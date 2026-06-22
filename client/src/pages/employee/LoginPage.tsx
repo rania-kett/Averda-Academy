@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { authApi } from "@/api/api";
@@ -30,33 +30,7 @@ export function LoginPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const isAr = i18n.language.toLowerCase().startsWith("ar");
-  const isFr = i18n.language.toLowerCase().startsWith("fr");
   const dir = isAr ? "rtl" : "ltr";
-
-  const labels = useMemo(() => {
-    if (isAr) {
-      return {
-        portalBadge: "بوابة الموظف",
-        employeeNumber: "رقم الموظف",
-        pin: "الرمز السري",
-        login: "دخول",
-      };
-    }
-    if (isFr) {
-      return {
-        portalBadge: "Portail Employé",
-        employeeNumber: "N° Employé",
-        pin: "Code PIN",
-        login: "Se connecter",
-      };
-    }
-    return {
-      portalBadge: "Employee Portal",
-      employeeNumber: "Employee Number",
-      pin: "PIN Code",
-      login: "Login",
-    };
-  }, [isAr, isFr]);
 
   const append = (d: string) => {
     if (pin.length >= 4) return;
@@ -180,7 +154,7 @@ export function LoginPage() {
             </div>
             <div className="mt-2 flex">
               <span className="inline-flex items-center rounded-full bg-[#EEF2F7] px-3 py-1 text-[12px] font-semibold text-[#111827]/70 dark:bg-white/10 dark:text-white/80">
-                {labels.portalBadge}
+                {t("login.portalBadge")}
               </span>
             </div>
             <div className="mt-3 h-px w-full bg-[#E5E7EB] dark:bg-white/10 md:mt-2" aria-hidden />
@@ -188,7 +162,7 @@ export function LoginPage() {
 
           <div className="space-y-3 md:space-y-2">
           <div>
-            <label className="mb-2 block text-[12px] font-semibold text-[#6B7280] dark:text-white/60">Employee ID</label>
+            <label className="mb-2 block text-[12px] font-semibold text-[#6B7280] dark:text-white/60">{t("login.employeeId")}</label>
             <input
               value={employeeRaw}
               onChange={(e) => {
@@ -294,13 +268,13 @@ export function LoginPage() {
               autoComplete="username"
               inputMode="text"
               dir="ltr"
-              aria-label={labels.employeeNumber}
+              aria-label={t("login.employeeId")}
               className="h-[52px] w-full rounded-xl border border-[#E5E7EB] bg-white px-4 text-[16px] font-semibold text-slate-900 outline-none placeholder:font-medium placeholder:text-slate-400 focus:border-[#2C4A8F]/50 focus:ring-2 focus:ring-[#2C4A8F]/15 dark:border-white/10 dark:bg-[#252b3b] dark:text-white dark:placeholder:text-white/40 md:h-11 md:text-[15px]"
             />
           </div>
 
           <div>
-            <div className="mb-2 text-[12px] font-semibold text-[#6B7280] dark:text-white/60">PIN Code</div>
+            <div className="mb-2 text-[12px] font-semibold text-[#6B7280] dark:text-white/60">{t("login.pin")}</div>
             <motion.div
               animate={errorMessage ? { x: [0, -8, 8, -6, 6, 0] } : {}}
               transition={{ duration: 0.4 }}
@@ -331,7 +305,7 @@ export function LoginPage() {
                   onClick={() => (k === "⌫" ? backspace() : append(k))}
                     className="flex h-14 min-w-[56px] items-center justify-center rounded-2xl bg-[#F0F2F5] text-[20px] font-extrabold text-slate-900 transition-all duration-150 hover:scale-105 hover:bg-[#E7EBF0] active:scale-[0.98] dark:bg-[#3a4157] dark:text-white dark:hover:bg-[#444c64] md:h-14 md:min-w-[72px] md:text-[20px]"
                     style={{ transition: "all 0.15s" }}
-                  aria-label={k === "⌫" ? "Backspace" : k}
+                  aria-label={k === "⌫" ? t("login.backspace") : k}
                 >
                   {k === "⌫" ? <Delete className="h-5 w-5" aria-hidden /> : k}
                 </button>
@@ -345,12 +319,12 @@ export function LoginPage() {
             onClick={() => void submit()}
             className="flex h-14 w-full items-center justify-center rounded-[12px] bg-[#1e3a5f] text-lg font-extrabold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 md:h-11 md:text-[15px]"
           >
-            {loading ? t("common.loading") : labels.login}
+            {loading ? t("common.loading") : t("login.submit")}
           </button>
           </div>
 
           <div className="mt-4 flex items-center justify-center gap-2 text-center text-xs font-semibold text-slate-400 dark:text-white/60 md:mt-2">
-            <span>Powered by Averda •</span>
+            <span>{t("login.poweredBy")} •</span>
             <img src={averdaLogo} alt="Averda" className="h-4 w-auto opacity-70" />
           </div>
         </motion.div>

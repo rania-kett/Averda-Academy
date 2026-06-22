@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next";
+
 const EPI_LIFESPANS_DAYS: Record<string, number> = {
   "حذاء السلامة": 365,
   "قفازات العمل": 90,
@@ -52,7 +54,8 @@ export function computeDisplayStatus(
 
 export function getExpiryLabel(
   itemName: string,
-  receivedDate: string | Date | null
+  receivedDate: string | Date | null,
+  t?: TFunction
 ): {
   text: string;
   color: "green" | "orange" | "red" | null;
@@ -62,8 +65,35 @@ export function getExpiryLabel(
   if (!expiryDate) return { text: "", color: null };
 
   const days = getDaysUntilExpiry(expiryDate);
-  if (days < 0) return { text: `انتهت منذ ${Math.abs(days)} يوم`, color: "red" };
-  if (days <= 7) return { text: `ينتهي خلال ${days} أيام ⚠️`, color: "orange" };
-  if (days <= 30) return { text: `ينتهي خلال ${days} يوم`, color: "orange" };
-  return { text: `ينتهي في ${days} يوم`, color: "green" };
+  if (days < 0) {
+    const n = Math.abs(days);
+    return {
+      text: t
+        ? t("admin.page.epi.expiry.expiredDays", { n })
+        : `انتهت منذ ${n} يوم`,
+      color: "red",
+    };
+  }
+  if (days <= 7) {
+    return {
+      text: t
+        ? t("admin.page.epi.expiry.withinDaysWarn", { n: days })
+        : `ينتهي خلال ${days} أيام ⚠️`,
+      color: "orange",
+    };
+  }
+  if (days <= 30) {
+    return {
+      text: t
+        ? t(days === 1 ? "admin.page.epi.expiry.withinDay" : "admin.page.epi.expiry.withinDays", { n: days })
+        : `ينتهي خلال ${days} يوم`,
+      color: "orange",
+    };
+  }
+  return {
+    text: t
+      ? t("admin.page.epi.expiry.withinDays", { n: days })
+      : `ينتهي في ${days} يوم`,
+    color: "green",
+  };
 }

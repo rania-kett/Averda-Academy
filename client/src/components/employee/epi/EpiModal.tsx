@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
 import { buildEpiProgress, isEpiNeedsStatus, type EpiRowStatus } from "@/utils/epiProgress";
 import { getExpiryLabel } from "@/utils/epiExpiry";
-import { getDisplayStatus, getStatusLabel } from "@/utils/epiStatus";
+import { getDisplayStatus } from "@/utils/epiStatus";
 
 const EPI_NAVY = "#1e3a5f";
 
@@ -49,9 +49,6 @@ function pickImageFromDevice(camera: boolean): Promise<File | null> {
   });
 }
 
-const LIFECYCLE_STEPS_AR = ["تم التعيين", "نشط", "مستهلك", "استبدال"] as const;
-const LIFECYCLE_STEPS_EN = ["Assigned", "Active", "In use", "Replace"] as const;
-
 function lifecycleStepIndex(status: EpiRowStatus, passportStatus?: string | null): number {
   if (passportStatus === "pending_renewal") return 3;
   if (status === "not_received") return 0;
@@ -84,7 +81,7 @@ function LifecycleStepIndicator({
                       ? "bg-[#1e3a5f] text-white"
                       : current
                         ? "bg-[#e8a020] text-white epi-step-current"
-                        : "border-2 border-[#d1d5db] bg-white text-[#9ca3af]"
+                        : "border-2 border-[#d1d5db] bg-white text-[#9ca3af] dark:border-[#44403C] dark:bg-[#292524] dark:text-stone-500"
                   }`}
                 >
                   {done ? "✓" : current ? "●" : ""}
@@ -95,8 +92,9 @@ function LifecycleStepIndicator({
               </div>
               {!isLast && (
                 <div
-                  className="mx-1 mb-5 h-0.5 flex-1 rounded-full"
-                  style={{ background: i < currentStep ? EPI_NAVY : "#e5e7eb" }}
+                  className={`mx-1 mb-5 h-0.5 flex-1 rounded-full ${
+                    i < currentStep ? "bg-[#1e3a5f]" : "bg-[#e5e7eb] dark:bg-[#44403C]"
+                  }`}
                 />
               )}
             </div>
@@ -264,7 +262,15 @@ export function EpiModal({ isOpen, onClose }: Props) {
     return items.find((x) => x.item.code === replacementItemCode)?.item ?? null;
   }, [items, replacementItemCode]);
 
-  const lifecycleLabels = langKey === "ar" ? LIFECYCLE_STEPS_AR : LIFECYCLE_STEPS_EN;
+  const lifecycleLabels = useMemo(
+    () => [
+      t("employee.epi.lifecycle.assigned"),
+      t("employee.epi.lifecycle.active"),
+      t("employee.epi.lifecycle.inUse"),
+      t("employee.epi.lifecycle.replace"),
+    ],
+    [t, i18n.language]
+  );
 
   const sizesComplete = Boolean(shirtSize || shoeSize || gloveSize || vestSize || pantsSize);
 
@@ -397,14 +403,14 @@ export function EpiModal({ isOpen, onClose }: Props) {
     reader.onload = () => {
       const url = String(reader.result || "");
       if (!url.startsWith("data:image/")) {
-        setProofError("تعذر قراءة الصورة");
+        setProofError(t("employee.epi.proof.readError"));
         return;
       }
       setProofError(null);
       setProofDataUrl(url);
       setProofStage("preview");
     };
-    reader.onerror = () => setProofError("تعذر قراءة الصورة");
+    reader.onerror = () => setProofError(t("employee.epi.proof.readError"));
     reader.readAsDataURL(file);
   };
 
@@ -491,12 +497,12 @@ export function EpiModal({ isOpen, onClose }: Props) {
       });
       markReplacementPending(replacementItemCode, p?.id ?? undefined);
       setReplacementSent(true);
-      toast(langKey === "ar" ? "تم إرسال طلب التجديد بنجاح ✅" : t("employee.epi.toasts.replacementSent"), "success");
+      toast(t("employee.epi.toasts.replacementSent"), "success");
       setItemSheetOpen(false);
       await refresh();
     } catch (e) {
       console.error("Renewal request error:", e);
-      toast(langKey === "ar" ? "❌ فشل الإرسال — تحقق من الاتصال" : t("employee.epi.errors.replacementFailed"), "error");
+      toast(t("employee.epi.errors.replacementFailed"), "error");
     } finally {
       setIsReplacementSubmitting(false);
       setSubmitting(false);
@@ -544,13 +550,13 @@ export function EpiModal({ isOpen, onClose }: Props) {
             style={{ background: EPI_NAVY, borderRadius: 16 }}
           >
             <div className="text-[14px] font-semibold opacity-80">
-              {langKey === "ar" ? "معدات السلامة الخاصة بك" : t("employee.epi.receipt.title")}
+              {t("employee.epi.receipt.title")}
             </div>
             <div className="mt-1 text-[32px] font-extrabold leading-none tabular-nums">
               {counts.received} / {counts.total}
             </div>
             <div className="mt-1 text-[13px] opacity-70">
-              {langKey === "ar" ? "معدات مستلمة" : t("employee.epi.receipt.progress", { received: counts.received, total: counts.total })}
+              {t("employee.epi.receipt.progress", { received: counts.received, total: counts.total })}
             </div>
             <div className="mt-3 h-2 overflow-hidden rounded" style={{ background: "rgba(255,255,255,0.2)", borderRadius: 4 }}>
               <div
@@ -560,13 +566,13 @@ export function EpiModal({ isOpen, onClose }: Props) {
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className="rounded-full px-3 py-1 text-[12px] font-bold" style={{ background: "rgba(255,255,255,0.15)" }}>
-                ✅ {counts.received} {langKey === "ar" ? "مستلم" : "received"}
+                ✅ {t("employee.epi.receipt.receivedChip", { n: counts.received })}
               </span>
               <span className="rounded-full px-3 py-1 text-[12px] font-bold" style={{ background: "rgba(255,255,255,0.15)" }}>
-                🕐 {counts.pending} {langKey === "ar" ? "في الانتظار" : "pending"}
+                🕐 {t("employee.epi.receipt.pendingChip", { n: counts.pending })}
               </span>
               <span className="rounded-full px-3 py-1 text-[12px] font-bold" style={{ background: "rgba(255,255,255,0.15)" }}>
-                ⚠️ {counts.needs} {langKey === "ar" ? "يحتاج تجديد" : "renewal"}
+                ⚠️ {t("employee.epi.receipt.renewalChip", { n: counts.needs })}
               </span>
             </div>
           </div>
@@ -604,7 +610,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
                       .map((row) => (
                         <div
                           key={row.label}
-                          className="rounded-xl border border-[#E7E5E4] bg-[#f9fafb] px-3 py-3 text-center dark:border-[#30363D] dark:bg-[#161b22]"
+                          className="rounded-xl border border-[#E7E5E4] bg-[#f9fafb] px-3 py-3 text-center dark:border-[#44403C] dark:bg-[#292524]"
                         >
                           <div className="text-[22px]" aria-hidden>
                             {row.emoji}
@@ -621,7 +627,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
                     disabled={loading || submitting}
                   >
                     <Edit3 className="h-5 w-5 text-averda dark:text-white" aria-hidden />
-                    {langKey === "ar" ? "تعديل المقاسات ✏️" : t("employee.epi.sizes.edit")}
+                    {t("employee.epi.sizes.edit")}
                   </button>
                 </div>
               )}
@@ -648,20 +654,24 @@ export function EpiModal({ isOpen, onClose }: Props) {
                   nextReplacementAt: it.passport?.nextReplacementAt ?? null,
                 });
                 const expiryHint = getExpiryLabel(itemName, receivedDate);
-                const statusMeta = getStatusLabel(displayStatus);
 
                 const isReceived = displayStatus === "received";
                 const isPending = displayStatus === "pending";
                 const isNeeds = displayStatus === "needs_renewal";
                 const isNotReceived = displayStatus === "not_issued";
 
-                const rowStyle = isReceived
-                  ? { background: "#ffffff", borderLeft: "3px solid #22c55e" }
-                  : isPending
-                    ? { background: "#fff7ed", borderLeft: "3px solid #f59e0b" }
-                    : isNeeds || isNotReceived
-                      ? { background: "#fef2f2", borderLeft: `3px solid ${isNeeds ? "#dc2626" : "#ef4444"}` }
-                      : { background: "#ffffff", borderLeft: "3px solid #e5e7eb" };
+                const rowClassName = [
+                  "epi-item-row flex w-full items-center gap-2 rounded-xl border border-[#E7E5E4]/80 pe-3 ps-0 shadow-sm dark:border-[#44403C]",
+                  isReceived
+                    ? "border-s-[3px] border-s-[#22c55e] bg-white dark:bg-[#292524]"
+                    : isPending
+                      ? "border-s-[3px] border-s-[#f59e0b] bg-[#fff7ed] dark:bg-amber-950/25"
+                      : isNeeds
+                        ? "border-s-[3px] border-s-[#dc2626] bg-[#fef2f2] dark:bg-red-950/30"
+                        : isNotReceived
+                          ? "border-s-[3px] border-s-[#ef4444] bg-[#fef2f2] dark:bg-red-950/30"
+                          : "border-s-[3px] border-s-[#e5e7eb] bg-white dark:border-s-[#44403C] dark:bg-[#292524]",
+                ].join(" ");
 
                 const statusPill = (
                   <span
@@ -676,31 +686,25 @@ export function EpiModal({ isOpen, onClose }: Props) {
                     }`}
                   >
                     {isReceived
-                      ? `✓ ${langKey === "ar" ? statusMeta.arabic : t("employee.epi.status.received")}`
+                      ? `✓ ${t("employee.epi.status.received")}`
                       : isPending
-                        ? `🕐 ${langKey === "ar" ? statusMeta.arabic : t("employee.epi.status.pending")}`
+                        ? `🕐 ${t("employee.epi.status.pending")}`
                         : isNeeds
-                          ? `✗ ${langKey === "ar" ? statusMeta.arabic : t("employee.epi.status.needsRenewal")}`
-                          : `! ${langKey === "ar" ? statusMeta.arabic : t("employee.epi.status.notIssued")}`}
+                          ? `✗ ${t("employee.epi.status.needsRenewal")}`
+                          : `${t("employee.epi.status.notIssued")} !`}
                   </span>
                 );
 
                 const subline = isPending
-                  ? langKey === "ar"
-                    ? awaitingRenewal
-                      ? "طلبك قيد المراجعة"
-                      : "بانتظار تأكيد الاستلام"
-                    : t("employee.epi.status.pending")
+                  ? awaitingRenewal
+                    ? t("employee.epi.pending.renewalReview")
+                    : t("employee.epi.pending.awaitingConfirm")
                   : it.passport?.issuedAt
                     ? t("employee.epi.items.assigned")
                     : t("employee.epi.items.notAssigned");
 
                 return (
-                  <div
-                    key={it.item.code}
-                    className="flex w-full items-center gap-2 rounded-xl border border-[#E7E5E4]/80 pe-3 ps-0 shadow-sm dark:border-[#30363D]"
-                    style={rowStyle}
-                  >
+                  <div key={it.item.code} className={rowClassName}>
                     <button
                       type="button"
                       onClick={() => openItem(it.item.code)}
@@ -738,9 +742,9 @@ export function EpiModal({ isOpen, onClose }: Props) {
                             e.stopPropagation();
                             openItem(it.item.code);
                           }}
-                          className="rounded-lg border border-[#ef4444]/30 bg-white px-2.5 py-1.5 text-[11px] font-extrabold text-[#dc2626]"
+                          className="rounded-lg border border-[#ef4444]/30 bg-white px-2.5 py-1.5 text-[11px] font-extrabold text-[#dc2626] dark:border-red-800/50 dark:bg-[#292524] dark:text-red-300"
                         >
-                          {langKey === "ar" ? "طلب استلام" : "Request"}
+                          {t("employee.epi.itemSheet.requestReceipt")}
                         </button>
                       ) : null}
                       {isNeeds && !awaitingRenewal ? (
@@ -754,7 +758,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
                           className="rounded-lg px-2.5 py-1.5 text-[11px] font-extrabold text-white"
                           style={{ background: EPI_NAVY }}
                         >
-                          {langKey === "ar" ? "طلب تجديد 🔄" : t("employee.epi.itemSheet.requestReplacement")}
+                          {t("employee.epi.itemSheet.requestReplacement")}
                         </button>
                       ) : null}
                     </div>
@@ -915,7 +919,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
               )}
               {selected.passport?.status === "pending_renewal" && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-[13px] font-bold text-amber-900 dark:border-amber-900/40 dark:bg-amber-500/10 dark:text-amber-200">
-                  {langKey === "ar" ? "في الانتظار 🕐 — طلب التجديد قيد المراجعة" : t("employee.epi.status.pending")}
+                  {t("employee.epi.pending.renewalInReview")}
                 </div>
               )}
               {selected.status === "not_received" && (
@@ -966,13 +970,15 @@ export function EpiModal({ isOpen, onClose }: Props) {
                 onClick={() => setReceptionNotifySupervisor((v) => !v)}
                 className={`flex min-h-[52px] w-full items-center gap-3 rounded-2xl border px-4 text-[14px] font-bold transition active:scale-[0.99] ${
                   receptionNotifySupervisor
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                    : "border-[#E7E5E4] bg-white text-[#1C1917]"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    : "border-[#E7E5E4] bg-white text-[#1C1917] dark:border-[#44403C] dark:bg-[#292524] dark:text-[#F5F5F4]"
                 }`}
               >
                 <span
                   className={`grid h-6 w-6 shrink-0 place-items-center rounded-md text-[13px] font-extrabold ${
-                    receptionNotifySupervisor ? "bg-emerald-600 text-white" : "border-2 border-[#d1d5db] bg-white"
+                    receptionNotifySupervisor
+                      ? "bg-emerald-600 text-white"
+                      : "border-2 border-[#d1d5db] bg-white dark:border-[#44403C] dark:bg-[#292524]"
                   }`}
                   aria-hidden
                 >
@@ -986,13 +992,15 @@ export function EpiModal({ isOpen, onClose }: Props) {
                 onClick={() => setReceptionFitOk((v) => !v)}
                 className={`flex min-h-[52px] w-full items-center gap-3 rounded-2xl border px-4 text-[14px] font-bold transition active:scale-[0.99] ${
                   receptionFitOk
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                    : "border-[#E7E5E4] bg-white text-[#1C1917]"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    : "border-[#E7E5E4] bg-white text-[#1C1917] dark:border-[#44403C] dark:bg-[#292524] dark:text-[#F5F5F4]"
                 }`}
               >
                 <span
                   className={`grid h-6 w-6 shrink-0 place-items-center rounded-md text-[13px] font-extrabold ${
-                    receptionFitOk ? "bg-emerald-600 text-white" : "border-2 border-[#d1d5db] bg-white"
+                    receptionFitOk
+                      ? "bg-emerald-600 text-white"
+                      : "border-2 border-[#d1d5db] bg-white dark:border-[#44403C] dark:bg-[#292524]"
                   }`}
                   aria-hidden
                 >
@@ -1031,7 +1039,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
                 onClick={() => beginReceptionProof()}
                 disabled={submitting}
               >
-                {langKey === "ar" ? "✅ تأكيد الاستلام" : t("employee.epi.reception.confirm")}
+                {t("employee.epi.reception.confirm")}
               </PrimaryButton>
             </div>
           </div>
@@ -1051,7 +1059,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
           />
           <div className="relative w-[min(520px,92vw)] rounded-2xl border border-[#E7E5E4] bg-white p-4 shadow-2xl dark:border-[#30363D] dark:bg-[#0D1117]">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[15px] font-extrabold text-[#1C1917] dark:text-white">📷 إثبات الاستلام</div>
+              <div className="text-[15px] font-extrabold text-[#1C1917] dark:text-white">{t("employee.epi.proof.title")}</div>
               <button
                 type="button"
                 onClick={() => setProofOpen(false)}
@@ -1078,11 +1086,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
                         📷
                       </span>
                       <p className="text-[13px] font-semibold leading-relaxed text-white/90">
-                        {langKey === "ar"
-                          ? "اضغط «التقاط الصورة» أدناه"
-                          : langKey === "fr"
-                            ? "Appuyez sur « Prendre la photo » pour ouvrir l'appareil photo"
-                            : "Tap « Take photo » to open the camera"}
+                        {t("employee.epi.proof.cameraHint")}
                       </p>
                     </div>
                   ) : null}
@@ -1095,7 +1099,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
                     onClick={captureProofFromVideo}
                     disabled={submitting}
                   >
-                    التقاط الصورة
+                    {t("employee.epi.proof.takePhoto")}
                   </PrimaryButton>
 
                   <button
@@ -1104,7 +1108,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
                     onClick={pickProofFromGallery}
                     disabled={submitting}
                   >
-                    اختيار صورة (بديل)
+                    {t("employee.epi.proof.pickGallery")}
                   </button>
                 </div>
 
@@ -1134,7 +1138,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
                     className="rounded-2xl border border-[#E7E5E4] bg-white px-4 py-3 text-[13px] font-bold text-[#1e3a5f] transition hover:bg-averda/10 active:scale-[0.99] dark:border-[#30363D] dark:bg-[#0D1117] dark:text-white"
                     disabled={submitting}
                   >
-                    إعادة التقاط
+                    {t("employee.epi.proof.retake")}
                   </button>
                   <PrimaryButton
                     type="button"
@@ -1142,7 +1146,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
                     onClick={() => void confirmSelectedReception(proofDataUrl ?? undefined)}
                     disabled={submitting || !proofDataUrl}
                   >
-                    تأكيد
+                    {t("employee.epi.proof.confirm")}
                   </PrimaryButton>
                 </div>
               </div>
@@ -1170,12 +1174,10 @@ export function EpiModal({ isOpen, onClose }: Props) {
               >
                 <span className="text-[56px]" aria-hidden>✅</span>
                 <h3 className="m-0 text-[18px] font-extrabold text-emerald-800 dark:text-emerald-200">
-                  {langKey === "ar" ? "تم إرسال طلبك بنجاح!" : t("employee.epi.replacement.sentTitle")}
+                  {t("employee.epi.replacement.sentTitle")}
                 </h3>
                 <p className="m-0 text-[14px] font-semibold leading-6 text-[#6b7280] dark:text-stone-400">
-                  {langKey === "ar"
-                    ? "سيتم مراجعة طلبك من قبل المسؤول وستصلك إشعار عند الموافقة"
-                    : t("employee.epi.replacement.sentHint")}
+                  {t("employee.epi.replacement.sentHint")}
                 </p>
                 <button
                   type="button"
@@ -1185,7 +1187,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
                   }}
                   className="mt-2 rounded-[10px] border-0 bg-[#1e3a5f] px-8 py-3 text-[15px] font-bold text-white transition active:scale-[0.97]"
                 >
-                  {langKey === "ar" ? "حسناً" : t("common.close")}
+                  {t("common.close")}
                 </button>
               </div>
             ) : (
@@ -1206,7 +1208,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
                   <button
                     type="button"
                     onClick={() => setReplacementOpen(false)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-white/70 text-slate-900"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-black/10 bg-white/70 text-slate-900 transition hover:bg-averda/10 active:scale-[0.97] dark:border-[#44403C] dark:bg-[#292524] dark:text-slate-100 dark:hover:bg-averda/20"
                     aria-label={t("common.close")}
                   >
                     <X className="h-5 w-5" aria-hidden />
@@ -1234,7 +1236,7 @@ export function EpiModal({ isOpen, onClose }: Props) {
                             className={`flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-xl border-2 px-2 py-3 text-center text-[13px] font-extrabold transition active:scale-[0.98] ${
                               active
                                 ? "border-[#1e3a5f] bg-[#1e3a5f] text-white"
-                                : "border-[#E7E5E4] bg-white text-[#1C1917] hover:border-[#1e3a5f]/40"
+                                : "border-[#E7E5E4] bg-white text-[#1C1917] hover:border-[#1e3a5f]/40 dark:border-[#44403C] dark:bg-[#292524] dark:text-[#F5F5F4] dark:hover:border-white/20"
                             }`}
                           >
                             <span className="text-[22px]" aria-hidden>
@@ -1273,12 +1275,8 @@ export function EpiModal({ isOpen, onClose }: Props) {
                     }}
                   >
                     {isReplacementSubmitting
-                      ? langKey === "ar"
-                        ? "جاري الإرسال..."
-                        : t("common.saving")
-                      : langKey === "ar"
-                        ? `إرسال طلب تجديد 🔄`
-                        : t("employee.epi.replacement.send")}
+                      ? t("common.saving")
+                      : t("employee.epi.replacement.send")}
                   </PrimaryButton>
                 </div>
               </>

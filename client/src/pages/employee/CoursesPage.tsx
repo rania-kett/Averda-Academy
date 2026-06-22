@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { coursesApi, userApi } from "@/api/api";
 import { Skeleton } from "@/components/employee/ui/Skeleton";
 import { EmptyState } from "@/components/employee/ui/EmptyState";
@@ -31,6 +32,7 @@ type CourseRow = {
 
 export function CoursesPage() {
   const { t } = useTranslation();
+  const nav = useNavigate();
   const [list, setList] = useState<CourseRow[]>([]);
   const [assessmentDone, setAssessmentDone] = useState(false);
   const [hsseqRequired, setHsseqRequired] = useState(true);
@@ -148,6 +150,16 @@ export function CoursesPage() {
     return { total, completed, allDone: total > 0 && completed >= total };
   }, [list]);
 
+  const openFirstCourse = useCallback(() => {
+    // Prefer an unlocked course; fallback to the first item.
+    const first =
+      list.find((c) => getCourseCardStatus(c) !== "locked") ??
+      list[0] ??
+      null;
+    if (!first?.id) return;
+    nav(`/courses/${first.id}`);
+  }, [list, nav]);
+
   if (loading) {
     return (
       <div className="space-y-7">
@@ -242,7 +254,7 @@ export function CoursesPage() {
           }
           description={t("employee.coursesExt.filteredEmptyDesc")}
           ctaLabel={t("employee.coursesExt.filteredCta")}
-          ctaTo="/courses"
+          ctaOnClick={openFirstCourse}
         />
       ) : (
         <CourseCardGrid lastReadTick={lastReadTick} className="courses-grid">

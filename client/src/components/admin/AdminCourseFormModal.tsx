@@ -13,6 +13,7 @@ import { CATEGORIES, categoryKeyFromCode, type CategoryKey } from "@/config/cate
 import { getColorFromEmoji } from "@/utils/getColorFromEmoji";
 import { getReadTime } from "@/utils/courseReadTime";
 import { resolveCourseCardVisual } from "@/data/courseSlugCardVisuals";
+import { resolveCurrentLng } from "@/i18n/persistLanguage";
 
 const NAVY = "#1e3a5f";
 const CREAM = "#f8f5ef";
@@ -90,6 +91,7 @@ function FormCoursePreview({
   coverColor: string;
   readingMinutes: number;
 }) {
+  const { t } = useTranslation();
   const coverStyle = previewCoverStyle(coverColor);
   return (
     <div className="mx-auto w-full max-w-[240px]">
@@ -127,7 +129,7 @@ function FormCoursePreview({
             </p>
           ) : null}
           <p style={{ margin: "8px 0 0", fontSize: 11, color: "#9ca3af", textAlign: "right" }}>
-            ⏱ {readingMinutes} دقائق
+            ⏱ {readingMinutes} {t("admin.courses.formModal.minutes")}
           </p>
         </div>
       </div>
@@ -144,6 +146,7 @@ export type AdminCourseFormEdit = {
   coverColor: string;
   categoryCodes: CategoryKey[];
   isActive?: boolean;
+  hasQuiz?: boolean;
 };
 
 type Props = {
@@ -162,7 +165,11 @@ export function AdminCourseFormModal({
   editingCourse = null,
   defaultCategoryCodes,
 }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lng = resolveCurrentLng(i18n.language);
+  const categoryLang: "ar" | "fr" | "en" = lng === "ar" ? "ar" : lng === "fr" ? "fr" : "en";
+  const isRTL = lng === "ar";
+  const fm = (key: string, opts?: Record<string, unknown>) => t(`admin.courses.formModal.${key}`, opts);
   const toast = useToast();
 
   const [categories, setCategories] = useState<{ id: string; code: string; key: CategoryKey | null }[]>([]);
@@ -186,8 +193,13 @@ export function AdminCourseFormModal({
   const [dragOver, setDragOver] = useState(false);
   const [readingMinutes, setReadingMinutes] = useState(5);
   const [readingTouched, setReadingTouched] = useState(false);
+  const [savedCourseId, setSavedCourseId] = useState<string | null>(null);
+  const [hasQuiz, setHasQuiz] = useState(false);
+  const [generatingQuiz, setGeneratingQuiz] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const courseId = editingCourse?.id ?? savedCourseId;
+  const isPersisted = Boolean(courseId);
   const editing = Boolean(editingCourse?.id);
 
   const resetForm = (categoryDefaults?: CategoryKey[]) => {
@@ -211,11 +223,14 @@ export function AdminCourseFormModal({
     setIsActive(true);
     setReadingMinutes(5);
     setReadingTouched(false);
+    setSavedCourseId(null);
+    setHasQuiz(false);
+    setGeneratingQuiz(false);
   };
 
   useEffect(() => {
     if (readingTouched) return;
-    setReadingMinutes(getReadTime(titleAr.trim() || "معاينة"));
+    setReadingMinutes(getReadTime(titleAr.trim() || fm("previewReadFallback")));
   }, [titleAr, readingTouched]);
 
   useEffect(() => {
@@ -241,6 +256,8 @@ export function AdminCourseFormModal({
       }
       setFile(null);
       setIsActive(c.isActive !== false);
+      setHasQuiz(c.hasQuiz === true);
+      setSavedCourseId(null);
       setActiveLangTab("ar");
       setAiNote(null);
       return;
@@ -293,7 +310,7 @@ export function AdminCourseFormModal({
       if (suggested && used.has(suggested)) {
         const replacement = String(ICONS.find((x) => !used.has(String(x))) ?? suggested);
         setIconChoice(replacement);
-        setAiNote(`"${suggested}" مستخدم مسبقًا — تم اختيار "${replacement}" بدلاً منه`);
+        setAiNote(fm("aiIconTaken", { suggested, replacement }));
       } else if (suggested) {
         setIconChoice(suggested);
       }
@@ -317,7 +334,7 @@ export function AdminCourseFormModal({
       toast(t("common.error"), "error");
       return;
     }
-    if (!editing && !file) {
+    if (!isPersisted && !file) {
       toast(t("common.error"), "error");
       return;
     }
@@ -332,8 +349,8 @@ export function AdminCourseFormModal({
 
     try {
       setSaving(true);
-      if (editing && editingCourse) {
-        await adminApi.updateCourse(editingCourse.id, {
+      if (isPersisted && courseId) {
+        await adminApi.updateCourse(courseId, {
           title: { ar: titleAr.trim(), fr: titleFr.trim(), en: titleEn.trim() },
           description: { ar: descAr.trim(), fr: descFr.trim(), en: descEn.trim() },
           icon: iconChoice,
@@ -341,6 +358,12 @@ export function AdminCourseFormModal({
           categoryIds: ids,
           isActive,
         });
+        toast(t("common.saved"), "success");
+        onSaved();
+        if (editing) {
+          resetForm();
+          onClose();
+        }
       } else {
         const fd = new FormData();
         fd.append("titleAr", titleAr.trim());
@@ -353,12 +376,15 @@ export function AdminCourseFormModal({
         fd.append("coverColor", normalizeHex(coverColor));
         fd.append("categoryIds", JSON.stringify(ids));
         fd.append("pdf", file!);
-        await adminApi.createCourse(fd);
+        const { data } = await adminApi.createCourse(fd);
+        const createdId = (data as { course?: { id: string } })?.course?.id;
+        if (!createdId) throw new Error("Missing course id");
+        setSavedCourseId(createdId);
+        setHasQuiz(false);
+        toast(t("common.saved"), "success");
+        onSaved();
+        await runGenerateQuiz(createdId);
       }
-      toast(t("common.saved"), "success");
-      resetForm();
-      onClose();
-      onSaved();
     } catch (err: unknown) {
       const ax = err as {
         message?: string;
@@ -380,14 +406,44 @@ export function AdminCourseFormModal({
 
   const allSelected = UNIQUE_TARGET_CATEGORY_KEYS.every((k) => selectedCodes.includes(k));
   const canSubmit =
-    Boolean(titleAr.trim()) && selectedCodes.length > 0 && (editing ? true : Boolean(file));
+    Boolean(titleAr.trim()) && selectedCodes.length > 0 && (isPersisted ? true : Boolean(file));
+
+  const runGenerateQuiz = async (targetId?: string): Promise<boolean> => {
+    const id = targetId ?? courseId;
+    if (!id) return false;
+    setGeneratingQuiz(true);
+    try {
+      await adminApi.aiGenerateQuiz({ courseId: id });
+      setHasQuiz(true);
+      toast(t("common.quizGenOk"), "success");
+      onSaved();
+      return true;
+    } catch (err: unknown) {
+      const ax = err as { response?: { status?: number; data?: { error?: string } } };
+      const msg = String(ax.response?.data?.error ?? "");
+      const st = ax.response?.status;
+      if (
+        st === 500 ||
+        st === 401 ||
+        st === 403 ||
+        /anthropic|api\s*key|unauthorized|ANTHROPIC/i.test(msg)
+      ) {
+        toast(t("common.apiKeyRequired"), "error");
+      } else {
+        toast(msg || t("admin.courses.genError"), "error");
+      }
+      return false;
+    } finally {
+      setGeneratingQuiz(false);
+    }
+  };
 
   const previewHex = useMemo(() => {
     return isValidHexColor(coverColor) ? normalizeHex(coverColor) : normalizeHex(getColorFromEmoji(iconChoice));
   }, [coverColor, iconChoice]);
 
-  const previewTitle = titleAr.trim() || "معاينة عنوان الدورة";
-  const previewDescription = descAr.trim() || "معاينة وصف الدورة";
+  const previewTitle = titleAr.trim() || fm("previewTitle");
+  const previewDescription = descAr.trim() || fm("previewDesc");
 
   const applyPdfFile = (f: File | null) => {
     setFile(f);
@@ -413,11 +469,11 @@ export function AdminCourseFormModal({
     "w-full rounded-lg border border-[#e5e7eb] bg-[#fafafa] px-3 py-2.5 text-sm font-medium text-[#111827] outline-none transition focus:border-[#1e3a5f] focus:bg-white focus:ring-2 focus:ring-[#1e3a5f]/15";
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" dir="rtl">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" dir={isRTL ? "rtl" : "ltr"}>
       <button
         type="button"
         className="absolute inset-0 bg-black/50"
-        aria-label="إغلاق"
+        aria-label={t("admin.page.actions.close")}
         onClick={handleClose}
       />
       <motion.form
@@ -431,19 +487,19 @@ export function AdminCourseFormModal({
         {/* HEADER */}
         <header className="shrink-0 px-5 py-4 text-white" style={{ background: NAVY }}>
           <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 text-right">
+            <div className={`min-w-0 ${isRTL ? "text-right" : "text-left"}`}>
               <h2 className="text-lg font-extrabold leading-tight">
-                {editing ? `✏️ ${t("admin.courses.editTitle") || t("common.edit")}` : "✚ دورة جديدة"}
+                {editing ? `✏️ ${t("admin.courses.editTitle")}` : `✚ ${fm("newTitle")}`}
               </h2>
               <p className="mt-1 text-xs font-medium text-white/70">
-                {editing ? "تعديل بيانات الدورة التدريبية" : "أضف دورة تدريبية جديدة للموظفين"}
+                {editing ? fm("editSubtitle") : fm("newSubtitle")}
               </p>
             </div>
             <button
               type="button"
               onClick={handleClose}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-lg text-white transition hover:bg-white/25"
-              aria-label="إغلاق"
+              aria-label={t("admin.page.actions.close")}
             >
               ✕
             </button>
@@ -456,12 +512,12 @@ export function AdminCourseFormModal({
             {/* LEFT — معلومات الدورة */}
             <div className="flex flex-col gap-4">
               <h3 className="text-sm font-extrabold" style={{ color: NAVY }}>
-                معلومات الدورة
+                {fm("sectionInfo")}
               </h3>
 
               <div className={SECTION_CARD}>
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-[#6b7280]">اللغات والنصوص</span>
+                  <span className="text-xs font-bold text-[#6b7280]">{fm("langsAndText")}</span>
                   <div className="inline-flex rounded-lg border border-[#e5e7eb] bg-[#f3f4f6] p-0.5">
                     {(["ar", "fr", "en"] as const).map((k) => {
                       const active = activeLangTab === k;
@@ -490,7 +546,7 @@ export function AdminCourseFormModal({
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <label className="mb-1.5 block text-xs font-bold text-[#374151]">العنوان</label>
+                    <label className="mb-1.5 block text-xs font-bold text-[#374151]">{fm("titleLabel")}</label>
                     <input
                       required={activeLangTab === "ar"}
                       value={activeLangTab === "ar" ? titleAr : activeLangTab === "fr" ? titleFr : titleEn}
@@ -502,16 +558,16 @@ export function AdminCourseFormModal({
                       }}
                       placeholder={
                         activeLangTab === "ar"
-                          ? "اكتب عنوان الدورة..."
+                          ? fm("titlePlaceholderAr")
                           : activeLangTab === "fr"
-                            ? "Titre du cours..."
-                            : "Course title..."
+                            ? fm("titlePlaceholderFr")
+                            : fm("titlePlaceholderEn")
                       }
                       className={fieldInput}
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-bold text-[#374151]">الوصف</label>
+                    <label className="mb-1.5 block text-xs font-bold text-[#374151]">{fm("descLabel")}</label>
                     <textarea
                       required={activeLangTab === "ar"}
                       value={activeLangTab === "ar" ? descAr : activeLangTab === "fr" ? descFr : descEn}
@@ -523,10 +579,10 @@ export function AdminCourseFormModal({
                       }}
                       placeholder={
                         activeLangTab === "ar"
-                          ? "اكتب وصفًا مختصرًا للدورة..."
+                          ? fm("descPlaceholderAr")
                           : activeLangTab === "fr"
-                            ? "Description courte..."
-                            : "Short description..."
+                            ? fm("descPlaceholderFr")
+                            : fm("descPlaceholderEn")
                       }
                       className={`${fieldInput} min-h-[88px] resize-y`}
                       rows={3}
@@ -536,7 +592,7 @@ export function AdminCourseFormModal({
               </div>
 
               <div className={SECTION_CARD}>
-                <div className="mb-3 text-xs font-bold text-[#6b7280]">الفئات المستهدفة</div>
+                <div className="mb-3 text-xs font-bold text-[#6b7280]">{fm("targetCategories")}</div>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
@@ -549,7 +605,7 @@ export function AdminCourseFormModal({
                     }}
                   >
                     <span className="text-base">✓</span>
-                    <span>الكل</span>
+                    <span>{fm("all")}</span>
                   </button>
                   {FORM_TARGET_CATEGORIES.map((opt) => {
                     const meta = CATEGORIES[opt.key];
@@ -571,13 +627,13 @@ export function AdminCourseFormModal({
                         }}
                       >
                         <meta.icon className="h-4 w-4 shrink-0" aria-hidden strokeWidth={2.6} />
-                        <span className="text-center leading-tight">{opt.labelAr}</span>
+                        <span className="text-center leading-tight">{CATEGORIES[opt.key].label[categoryLang]}</span>
                       </button>
                     );
                   })}
                 </div>
                 {selectedCodes.length === 0 && (
-                  <p className="mt-2 text-xs font-semibold text-red-600">يجب اختيار فئة واحدة على الأقل.</p>
+                  <p className="mt-2 text-xs font-semibold text-red-600">{t("admin.courses.pickCategory")}</p>
                 )}
               </div>
             </div>
@@ -585,11 +641,11 @@ export function AdminCourseFormModal({
             {/* RIGHT — الهوية البصرية والمحتوى */}
             <div className="flex flex-col gap-4">
               <h3 className="text-sm font-extrabold" style={{ color: NAVY }}>
-                الهوية البصرية والمحتوى
+                {fm("sectionVisual")}
               </h3>
 
               <div className={SECTION_CARD}>
-                <div className="mb-3 text-center text-xs font-bold text-[#6b7280]">معاينة البطاقة</div>
+                <div className="mb-3 text-center text-xs font-bold text-[#6b7280]">{fm("cardPreview")}</div>
                 <FormCoursePreview
                   title={previewTitle}
                   description={previewDescription}
@@ -598,7 +654,7 @@ export function AdminCourseFormModal({
                   readingMinutes={readingMinutes}
                 />
                 <div className="mt-4 flex items-center justify-center gap-2 border-t border-[#f3f4f6] pt-4">
-                  <label className="text-xs font-bold text-[#374151]">وقت القراءة</label>
+                  <label className="text-xs font-bold text-[#374151]">{fm("readingTime")}</label>
                   <input
                     type="number"
                     min={1}
@@ -610,12 +666,12 @@ export function AdminCourseFormModal({
                     }}
                     className="w-16 rounded-lg border border-[#e5e7eb] bg-[#fafafa] px-2 py-1.5 text-center text-sm font-bold text-[#111827]"
                   />
-                  <span className="text-xs font-semibold text-[#6b7280]">دقائق</span>
+                  <span className="text-xs font-semibold text-[#6b7280]">{fm("minutes")}</span>
                 </div>
               </div>
 
               <div className={SECTION_CARD}>
-                <div className="mb-3 text-xs font-bold text-[#6b7280]">لون الغلاف</div>
+                <div className="mb-3 text-xs font-bold text-[#6b7280]">{fm("coverColor")}</div>
                 <div className="flex flex-wrap gap-4 text-sm font-semibold text-[#374151]">
                   <label className="inline-flex cursor-pointer items-center gap-2">
                     <input
@@ -628,7 +684,7 @@ export function AdminCourseFormModal({
                       }}
                       className="h-4 w-4 accent-[#1e3a5f]"
                     />
-                    <span>تلقائي</span>
+                    <span>{fm("auto")}</span>
                   </label>
                   <label className="inline-flex cursor-pointer items-center gap-2">
                     <input
@@ -638,7 +694,7 @@ export function AdminCourseFormModal({
                       onChange={() => setCoverColorMode("custom")}
                       className="h-4 w-4 accent-[#1e3a5f]"
                     />
-                    <span>مخصص</span>
+                    <span>{fm("custom")}</span>
                   </label>
                 </div>
                 {coverColorMode === "custom" ? (
@@ -648,7 +704,7 @@ export function AdminCourseFormModal({
                       value={isValidHexColor(coverColor) ? normalizeHex(coverColor) : "#2C4A8F"}
                       onChange={(e) => setCoverColor(normalizeHex(e.target.value))}
                       className="h-10 w-14 cursor-pointer rounded-lg border border-[#e5e7eb] bg-white p-1"
-                      aria-label="منتقى الألوان"
+                      aria-label={fm("colorPicker")}
                     />
                     <input
                       value={coverColor}
@@ -670,13 +726,13 @@ export function AdminCourseFormModal({
                   </div>
                 )}
                 {!isValidHexColor(coverColor) && (
-                  <p className="mt-2 text-[11px] font-semibold text-red-600">أدخل لونًا بصيغة #RRGGBB</p>
+                  <p className="mt-2 text-[11px] font-semibold text-red-600">{fm("invalidHex")}</p>
                 )}
                 {aiNote && <p className="mt-2 text-xs font-semibold text-amber-700">{aiNote}</p>}
               </div>
 
               <div className={SECTION_CARD}>
-                <div className="mb-3 text-xs font-bold text-[#6b7280]">اختيار الأيقونة</div>
+                <div className="mb-3 text-xs font-bold text-[#6b7280]">{fm("pickIcon")}</div>
                 <div className="grid grid-cols-5 gap-2">
                   {ICONS.map((ic) => {
                     const active = iconChoice === ic;
@@ -699,7 +755,7 @@ export function AdminCourseFormModal({
                   })}
                 </div>
                 <div className="mt-3">
-                  <label className="mb-1 block text-[11px] font-bold text-[#6b7280]">إيموجي مخصص</label>
+                  <label className="mb-1 block text-[11px] font-bold text-[#6b7280]">{fm("customEmoji")}</label>
                   <input
                     value={iconChoice}
                     onChange={(e) => {
@@ -716,9 +772,9 @@ export function AdminCourseFormModal({
               </div>
 
               <div className={SECTION_CARD}>
-                {!editing ? (
+                {!isPersisted ? (
                   <>
-                    <div className="mb-3 text-xs font-bold text-[#6b7280]">رفع PDF</div>
+                    <div className="mb-3 text-xs font-bold text-[#6b7280]">{fm("uploadPdf")}</div>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -740,7 +796,7 @@ export function AdminCourseFormModal({
                             if (fileInputRef.current) fileInputRef.current.value = "";
                           }}
                           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-lg font-bold text-[#6b7280] transition hover:bg-red-50 hover:text-red-600"
-                          aria-label="إزالة الملف"
+                          aria-label={fm("removeFile")}
                         >
                           ✕
                         </button>
@@ -766,15 +822,15 @@ export function AdminCourseFormModal({
                         }`}
                       >
                         <div className="text-3xl">📄</div>
-                        <div className="mt-3 text-sm font-extrabold text-[#111827]">اسحب ملف PDF هنا</div>
+                        <div className="mt-3 text-sm font-extrabold text-[#111827]">{fm("dropPdf")}</div>
                         <div className="mt-1 text-xs font-medium text-[#6b7280]">
-                          أو انقر للاختيار • الحد الأقصى 50MB
+                          {fm("dropPdfHint")}
                         </div>
                       </div>
                     )}
                     {analyzing && (
                       <p className="mt-2 text-center text-xs font-semibold text-[#2563eb]">
-                        جاري تحليل المستند بالذكاء الاصطناعي...
+                        {fm("analyzing")}
                       </p>
                     )}
                   </>
@@ -792,6 +848,42 @@ export function AdminCourseFormModal({
               </div>
             </div>
           </div>
+
+          <div className={`mt-5 ${SECTION_CARD}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className={isRTL ? "text-right" : "text-left"}>
+                <h3 className="text-sm font-extrabold" style={{ color: NAVY }}>
+                  📝 {fm("sectionQuiz")}
+                </h3>
+                <p className="mt-1 text-xs font-medium text-[#6b7280]">{fm("quizHint")}</p>
+              </div>
+              {isPersisted ? (
+                <span
+                  className={`inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-bold ${
+                    hasQuiz ? "bg-emerald-50 text-emerald-700" : "bg-orange-50 text-orange-700"
+                  }`}
+                >
+                  {hasQuiz ? fm("quizStatusYes") : fm("quizStatusNo")}
+                </span>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              disabled={!isPersisted || generatingQuiz || saving}
+              onClick={() => void runGenerateQuiz()}
+              className="mt-3 w-full rounded-xl border border-[#1e3a5f]/20 bg-[#eff6ff] px-4 py-3 text-sm font-extrabold text-[#1e3a5f] transition hover:bg-[#dbeafe] disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"
+              style={!isPersisted ? { background: "#f3f4f6", color: "#9ca3af", borderColor: "#e5e7eb" } : undefined}
+            >
+              {generatingQuiz
+                ? t("common.generating")
+                : hasQuiz
+                  ? fm("regenerateQuiz")
+                  : fm("generateQuiz")}
+            </button>
+            {!isPersisted ? (
+              <p className="mt-2 text-xs font-semibold text-[#6b7280]">{fm("quizSaveFirst")}</p>
+            ) : null}
+          </div>
         </div>
 
         {/* FOOTER */}
@@ -801,18 +893,18 @@ export function AdminCourseFormModal({
             onClick={handleClose}
             className="rounded-xl border border-[#e5e7eb] bg-transparent px-5 py-2.5 text-sm font-bold text-[#374151] transition hover:bg-[#f9fafb]"
           >
-            إلغاء
+            {t("common.cancel")}
           </button>
           {!canSubmit && !saving && (
             <span className="text-center text-xs font-semibold text-[#ea580c]">
-              ⚠️ يرجى ملء:{" "}
-              {[
-                !titleAr.trim() && "العنوان",
-                selectedCodes.length === 0 && "الفئة",
-                !editing && !file && "الملف",
+              ⚠️ {fm("fillRequired")}{" "}
+              {              [
+                !titleAr.trim() && fm("fieldTitle"),
+                selectedCodes.length === 0 && fm("fieldCategory"),
+                !isPersisted && !file && fm("fieldFile"),
               ]
                 .filter(Boolean)
-                .join("، ")}
+                .join(", ")}
             </span>
           )}
           <button
@@ -821,7 +913,7 @@ export function AdminCourseFormModal({
             className="rounded-xl px-6 py-2.5 text-sm font-extrabold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-45"
             style={{ background: NAVY }}
           >
-            {saving ? "جارٍ الحفظ..." : "💾 حفظ الدورة"}
+            {saving ? fm("saving") : isPersisted && !editing ? fm("saveUpdates") : `💾 ${fm("save")}`}
           </button>
         </footer>
       </motion.form>

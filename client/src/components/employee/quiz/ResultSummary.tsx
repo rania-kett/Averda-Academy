@@ -38,7 +38,7 @@ export function ResultSummary(props: {
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800/50 dark:bg-[#292524]">
           <div className="text-[14px] font-extrabold text-emerald-900 dark:text-emerald-100">
             {lang === "ar" ? "إجابات صحيحة" : lang === "fr" ? "Bonnes réponses" : "Correct answers"}
           </div>
@@ -46,7 +46,7 @@ export function ResultSummary(props: {
             {correctCount}
           </div>
         </div>
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900/40 dark:bg-red-950/20">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-[#292524]">
           <div className="text-[14px] font-extrabold text-red-900 dark:text-red-100">
             {lang === "ar" ? "إجابات خاطئة" : lang === "fr" ? "Réponses incorrectes" : "Wrong answers"}
           </div>
@@ -61,7 +61,7 @@ export function ResultSummary(props: {
           row.isCorrect ? (
             <div
               key={row.questionId}
-              className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20"
+              className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800/50 dark:bg-[#292524]"
             >
               <div className="flex items-start gap-3">
                 <span className="text-xl" aria-hidden>
@@ -85,7 +85,7 @@ export function ResultSummary(props: {
           ) : (
             <div
               key={row.questionId}
-              className="rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900/40 dark:bg-red-950/20"
+              className="rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-[#292524]"
             >
               <div className="flex items-start gap-3">
                 <span className="text-xl" aria-hidden>

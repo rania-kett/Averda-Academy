@@ -15,7 +15,12 @@ export function getReadTime(title: string): number {
   return hit ? hit[1] : 5;
 }
 
-export function getLastRead(courseId: string): string | null {
+export type LastReadRelative =
+  | { type: "today" }
+  | { type: "yesterday" }
+  | { type: "days"; count: number };
+
+export function getLastReadRelative(courseId: string): LastReadRelative | null {
   try {
     const stored = localStorage.getItem(`lastRead_${courseId}`);
     if (!stored) return null;
@@ -23,9 +28,9 @@ export function getLastRead(courseId: string): string | null {
     if (Number.isNaN(date.getTime())) return null;
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return "اليوم";
-    if (diffDays === 1) return "أمس";
-    return `منذ ${diffDays} أيام`;
+    if (diffDays === 0) return { type: "today" };
+    if (diffDays === 1) return { type: "yesterday" };
+    return { type: "days", count: diffDays };
   } catch {
     return null;
   }

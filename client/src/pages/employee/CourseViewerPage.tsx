@@ -14,7 +14,7 @@ import { SoundButton } from "@/components/SoundButton";
 import "./CourseViewerPage.css";
 
 const ENV_API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
-const LOCAL_PDF_HOST_RE = /^https?:\/\/(?:localhost|127\.0\.0\.1):3001(?=\/(?:courses|uploads)\/)/;
+const LOCAL_PDF_HOST_RE = /^https?:\/\/(?:localhost|127\.0\.0\.1):3011(?=\/(?:courses|uploads)\/)/;
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

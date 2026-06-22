@@ -19,6 +19,11 @@ import epiRouter from "./routes/epi.js";   // near other imports           // ne
 
 dotenv.config();
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[server] Unhandled Rejection:", reason);
+  // Do NOT exit the process — log and continue
+});
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads");
 ensureUploadDir(uploadDir);
@@ -26,7 +31,9 @@ const epiProofsDir = path.join(uploadDir, "epi-proofs");
 if (!fs.existsSync(epiProofsDir)) {
   fs.mkdirSync(epiProofsDir, { recursive: true });
 }
-const COURSES_DIR = path.join(process.cwd(), "client", "public", "courses");
+// IMPORTANT: do not rely on process.cwd() here because the API may be started with cwd = "server/".
+// Resolve relative to this file instead: server/src → repo root → client/public/courses
+const COURSES_DIR = path.resolve(__dirname, "../../client/public/courses");
 const bundledPlaceholder = path.join(__dirname, "../assets/placeholder.pdf");
 const uploadPlaceholder = path.join(uploadDir, "placeholder.pdf");
 if (fs.existsSync(bundledPlaceholder)) {
@@ -42,13 +49,18 @@ const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
 
 app.use('/courses', (req, res) => {
   try {
+    const rawPath = req.path;
+    if (!rawPath || rawPath === '/' || rawPath === '') {
+      return res.status(400).json({ error: 'No file specified' });
+    }
+
     // Get the raw buffer representation to handle any encoding
     const rawUrl = req.url ?? '/';
     const queryStart = rawUrl.indexOf('?');
-    const rawPath = queryStart === -1 ? rawUrl : rawUrl.slice(0, queryStart);
+    const urlPath = queryStart === -1 ? rawUrl : rawUrl.slice(0, queryStart);
 
     // Keep decoding until stable
-    let decoded = rawPath;
+    let decoded = urlPath;
     let prev = '';
     while (prev !== decoded) {
       prev = decoded;
@@ -58,7 +70,56 @@ app.use('/courses', (req, res) => {
 
     const filePath = path.join(COURSES_DIR, decoded);
 
-    if (!fs.existsSync(filePath)) {
+    const tryResolve = (): string | null => {
+      if (fs.existsSync(filePath)) return filePath;
+
+      // 1) Common mismatch: trailing spaces before ".pdf" or multiple spaces.
+      const normalizedDecoded = decoded.replace(/\s+\.pdf$/i, ".pdf");
+      const normalizedPath = normalizedDecoded === decoded ? filePath : path.join(COURSES_DIR, normalizedDecoded);
+      if (normalizedPath !== filePath && fs.existsSync(normalizedPath)) return normalizedPath;
+
+      // 2) Robust fallback for Windows + Arabic filenames:
+      // if still not found, scan the target directory and match by a loose normalization.
+      // This handles double spaces, Unicode normalization (NFC), and trailing spaces safely.
+      try {
+        const parts = normalizedDecoded.split("/").filter(Boolean);
+        if (parts.length < 2) return null;
+        const folder = parts.slice(0, -1).join(path.sep);
+        const wantedFile = parts[parts.length - 1] ?? "";
+        const dirAbs = path.join(COURSES_DIR, folder);
+        if (!fs.existsSync(dirAbs)) return null;
+        const entries = fs.readdirSync(dirAbs);
+        const norm = (s: string) =>
+          s
+            .normalize("NFC")
+            // Ignore parenthetical suffixes like (1)
+            .replace(/\([^)]*\)/g, " ")
+            .replace(/\s+/g, " ")
+            .replace(/\s+\.pdf$/i, ".pdf")
+            // Treat "الجمع2" and "الجمع 2" as same
+            .replace(/\s+(?=\d)/g, "")
+            .trim()
+            .toLowerCase();
+        const target = norm(wantedFile);
+        const hit = entries.find((e) => norm(e) === target);
+        if (!hit) return null;
+        const abs = path.join(dirAbs, hit);
+        return fs.existsSync(abs) ? abs : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const chosenPath = tryResolve();
+    if (!chosenPath) {
+      return res.status(404).json({ error: 'File not found', path: filePath });
+    }
+    try {
+      const stat = fs.statSync(chosenPath);
+      if (!stat.isFile()) {
+        return res.status(404).json({ error: 'Not a file', path: filePath });
+      }
+    } catch {
       return res.status(404).json({ error: 'File not found', path: filePath });
     }
     res.setHeader('Content-Type', 'application/pdf');
@@ -67,7 +128,14 @@ app.use('/courses', (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Content-Disposition', 'inline');
-    fs.createReadStream(filePath).pipe(res);
+    const stream = fs.createReadStream(chosenPath);
+    stream.on('error', (err) => {
+      console.error('[PDF middleware] stream error:', err.message);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to read file' });
+      }
+    });
+    stream.pipe(res);
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -153,7 +221,7 @@ app.use((_req, _res, next) => {
 
 app.use(errorHandler);
 
-const port = Number(process.env.PORT) || 3001;
+const port = Number(process.env.PORT) || 3011;
 app.listen(port, () => {
   console.log(`API listening on http://localhost:${port}`);
 });

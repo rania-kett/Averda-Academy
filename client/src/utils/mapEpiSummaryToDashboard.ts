@@ -1,11 +1,13 @@
 import type { EpiSummaryLike } from "@/utils/epiProgress";
 import { buildEpiProgress, isEpiNeedsStatus, type EpiRowStatus } from "@/utils/epiProgress";
 import { getDisplayStatus, getEmployeeEpiPillFlags, getStatusLabel, type EpiPillFlags } from "@/utils/epiStatus";
-import { categoryKeyFromCode, CATEGORIES } from "@/config/categories";
+import { categoryKeyFromCode, CATEGORIES, type CategoryKey } from "@/config/categories";
 
 export type DashboardEpiItem = {
   type: string;
   label: string;
+  /** Arabic catalog label — used for expiry lifespan lookup */
+  labelAr: string;
   status: "received" | "pending" | "needs_renewal" | "not_issued";
   lastIssued?: string;
   confirmedAt?: string;
@@ -20,6 +22,7 @@ export type DashboardEpiEmployee = {
   employeeCode: string;
   name: string;
   role: string;
+  categoryKey?: CategoryKey | null;
   measurements: {
     shirt: string;
     pants: string;
@@ -84,6 +87,7 @@ export function mapEpiSummaryToDashboardEmployee(
   const dashboardItems: DashboardEpiItem[] = items.map(({ item, passport, status }) => ({
     type: item.code,
     label: item.labelAr || item.labelFr || item.labelEn || item.code,
+    labelAr: item.labelAr || item.labelFr || item.labelEn || item.code,
     status: mapRowStatusToDashboard(status),
     lastIssued: passport?.issuedAt ? String(passport.issuedAt) : undefined,
     confirmedAt: passport?.lastReceptionAt ? String(passport.lastReceptionAt) : undefined,
@@ -115,11 +119,14 @@ export function mapEpiSummaryToDashboardEmployee(
     if (p.issuedAt) dates.push(new Date(String(p.issuedAt)).getTime());
   }
 
+  const catKey = categoryKeyFromCode(row.categoryCode);
+
   return {
     id: row.id,
     employeeCode: row.employeeId,
     name: row.name,
     role: row.categoryNameAr ?? roleLabelFromCategoryCode(row.categoryCode),
+    categoryKey: catKey,
     measurements: {
       shirt: profile?.shirtSize?.trim() || "—",
       pants: profile?.pantsSize?.trim() || "—",

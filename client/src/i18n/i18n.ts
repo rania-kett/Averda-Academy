@@ -3,9 +3,9 @@ import { initReactI18next } from "react-i18next";
 import ar from "./ar.json";
 import en from "./en.json";
 import fr from "./fr.json";
+import { readStoredLanguage, supportedLngs, type SupportedLng } from "./languageStorage";
 
-export const supportedLngs = ["ar", "fr", "en"] as const;
-export type SupportedLng = (typeof supportedLngs)[number];
+export { supportedLngs, type SupportedLng };
 
 void i18n.use(initReactI18next).init({
   resources: {
@@ -13,7 +13,7 @@ void i18n.use(initReactI18next).init({
     fr: { translation: fr },
     en: { translation: en },
   },
-  lng: "ar",
+  lng: readStoredLanguage(),
   fallbackLng: "ar",
   interpolation: { escapeValue: false },
 });

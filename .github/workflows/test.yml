@@ -1,0 +1,40 @@
+name: Tests
+on: [push, pull_request]
+jobs:
+  server-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: averda_academy_test
+        ports: ["5434:5432"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm run install:all
+      - run: cd server && npx prisma migrate deploy && npx prisma db seed
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5434/averda_academy_test
+          JWT_SECRET: test_jwt_secret
+          JWT_REFRESH_SECRET: test_refresh_secret
+          SETTINGS_SECRET: test_settings_secret
+      - run: npm test --workspace=server
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5434/averda_academy_test
+          JWT_SECRET: test_jwt_secret
+          JWT_REFRESH_SECRET: test_refresh_secret
+          SETTINGS_SECRET: test_settings_secret
+
+  client-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: cd client && npm install
+      - run: npm test --workspace=client

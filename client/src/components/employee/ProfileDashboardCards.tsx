@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Line, LineChart, ResponsiveContainer } from "recharts";
 import type { EpiPassportItem } from "@/api/api";
+import { translatedEmployeeBadgeName } from "@/i18n/badgeName";
 import { Card } from "@/components/employee/ui/primitives";
 
 type SparkPoint = { v: number };
@@ -71,7 +72,7 @@ type Props = {
   quizAvgPct: number;
   timeSpentSecs: number;
   passportItems: EpiPassportItem[];
-  badgeIcons: { icon: string; earned: boolean; key: string }[];
+  badgeIcons: { icon: string; earned: boolean; key: string; title?: unknown }[];
   level: number;
   xp: number;
   xpNext: number;
@@ -258,7 +259,9 @@ export function ProfileDashboardCards({
                         )}
                       </div>
                       <div className="mt-1 truncate text-[11px] font-semibold text-[#1C1917]/60 dark:text-white/60">
-                        {b.key.replaceAll("_", " ")}
+                        {b.earned
+                          ? translatedEmployeeBadgeName({ key: b.key, title: b.title }, t, lang)
+                          : t("employee.badgesPage.locked")}
                       </div>
                     </div>
                   ))}

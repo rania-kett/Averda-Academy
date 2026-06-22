@@ -1,13 +1,13 @@
 import { Router } from "express";
 import { body, validationResult } from "express-validator";
 import { RateLimiterMemory } from "rate-limiter-flexible";
+import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { comparePassword, comparePin } from "../utils/hash.js";
 import {
   signAccessToken,
   signRefreshToken,
-  verifyRefreshToken,
 } from "../utils/jwt.js";
 
 const router = Router();
@@ -115,8 +115,26 @@ router.post("/refresh", body("refreshToken").notEmpty(), async (req, res, next) 
       return;
     }
     const { refreshToken } = req.body as { refreshToken: string };
-    const payload = verifyRefreshToken(refreshToken);
-    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+    const refreshSecret = process.env.JWT_REFRESH_SECRET;
+    if (!refreshSecret) {
+      throw new Error("JWT_REFRESH_SECRET is not set");
+    }
+
+    let payload: jwt.JwtPayload;
+    try {
+      payload = jwt.verify(refreshToken, refreshSecret) as jwt.JwtPayload;
+    } catch (err) {
+      if (err instanceof jwt.TokenExpiredError || err instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ error: "Invalid or expired refresh token" });
+      }
+      throw err;
+    }
+
+    if (payload.type !== "refresh") {
+      return res.status(401).json({ error: "Invalid or expired refresh token" });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: payload.sub as string } });
     if (!user || !user.isActive) {
       throw new AppError(401, "Invalid token");
     }

@@ -41,11 +41,13 @@ export function AdminSidebar({ mobileOpen, onNavigate }: Props) {
       }`}
       aria-label={t("admin.sidebar.aria")}
     >
-      <div className="flex h-16 items-center gap-3 border-b border-white/15 px-4">
-        <img src={AverdaLogo} alt="Averda" className="h-7 w-auto rounded bg-white/95 p-1" />
-        <div className="min-w-0 text-white">
-          <p className="truncate text-[14px] font-extrabold leading-tight">Averda Academy</p>
-          <p className="truncate text-[12px] font-medium text-white/70">{t("admin.sidebar.adminLabel")}</p>
+      <div className="border-b border-white/15 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <img src={AverdaLogo} alt="Averda" className="h-7 w-auto rounded bg-white/95 p-1" />
+          <div className="min-w-0 flex-1 text-white">
+            <p className="truncate text-[14px] font-extrabold leading-tight">Averda Academy</p>
+            <p className="truncate text-[12px] font-medium text-white/70">{t("admin.sidebar.adminLabel")}</p>
+          </div>
         </div>
       </div>
 

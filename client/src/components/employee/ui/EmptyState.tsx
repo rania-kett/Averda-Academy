@@ -5,11 +5,13 @@ export function EmptyState({
   description,
   ctaLabel,
   ctaTo,
+  ctaOnClick,
 }: {
   title: string;
   description?: string;
   ctaLabel?: string;
   ctaTo?: string;
+  ctaOnClick?: () => void;
 }) {
   return (
     <div className="rounded-2xl border border-[#E7E5E4] bg-white p-6 text-center shadow-sm dark:border-[#44403C] dark:bg-[#292524]">
@@ -17,16 +19,26 @@ export function EmptyState({
       {description && (
         <p className="mt-1 text-sm text-[#57534E] dark:text-stone-400">{description}</p>
       )}
-      {ctaLabel && ctaTo && (
+      {ctaLabel && (ctaTo || ctaOnClick) ? (
         <div className="mt-4">
-          <Link
-            to={ctaTo}
-            className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-averda px-5 text-sm font-semibold text-white transition active:scale-[0.97] hover:bg-averda-dark"
-          >
-            {ctaLabel}
-          </Link>
+          {ctaOnClick ? (
+            <button
+              type="button"
+              onClick={ctaOnClick}
+              className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-averda px-5 text-sm font-semibold text-white transition active:scale-[0.97] hover:bg-averda-dark"
+            >
+              {ctaLabel}
+            </button>
+          ) : ctaTo ? (
+            <Link
+              to={ctaTo}
+              className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-averda px-5 text-sm font-semibold text-white transition active:scale-[0.97] hover:bg-averda-dark"
+            >
+              {ctaLabel}
+            </Link>
+          ) : null}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

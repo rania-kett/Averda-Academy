@@ -12,6 +12,7 @@ import {
   computeEmployeeCourseMetrics,
   visibleCoursesForEmployee,
 } from "../utils/employeeCourseProgress.js";
+import { isCategoryWithoutCoursesYet } from "../utils/adminCourseVisibility.js";
 import { NEW_BADGES, NEW_BADGE_KEYS } from "../services/badgeCatalog.js";
 import { evaluateBadgesAfterLessonComplete } from "../services/badgeService.js";
 
@@ -62,7 +63,7 @@ router.get("/me", async (req, res, next) => {
       include: { categories: true },
     });
     const visible =
-      user.categoryId == null
+      user.categoryId == null || isCategoryWithoutCoursesYet(user.category?.code)
         ? []
         : assigned.filter((c) =>
             c.categories.some((cc) => cc.categoryId === user.categoryId)

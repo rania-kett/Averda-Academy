@@ -59,18 +59,18 @@ export default defineConfig({
       strict: false,
     },
     proxy: {
-      "/api": { target: "http://localhost:3001", changeOrigin: true },
-      "/courses": { target: "http://localhost:3001", changeOrigin: true },
-      "/uploads": { target: "http://localhost:3001", changeOrigin: true },
+      "/api": { target: "http://localhost:3011", changeOrigin: true },
+      "/courses": { target: "http://localhost:3011", changeOrigin: true },
+      "/uploads": { target: "http://localhost:3011", changeOrigin: true },
     },
   },
   preview: {
     port: 4173,
     host: true,
     proxy: {
-      "/api": { target: "http://localhost:3001", changeOrigin: true },
-      "/courses": { target: "http://localhost:3001", changeOrigin: true },
-      "/uploads": { target: "http://localhost:3001", changeOrigin: true },
+      "/api": { target: "http://localhost:3011", changeOrigin: true },
+      "/courses": { target: "http://localhost:3011", changeOrigin: true },
+      "/uploads": { target: "http://localhost:3011", changeOrigin: true },
     },
   },
 });

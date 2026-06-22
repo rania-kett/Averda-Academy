@@ -50,7 +50,7 @@ export function MistakesReview(props: {
             return (
               <div
                 key={m.questionId}
-                className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm dark:border-red-900/40 dark:bg-red-950/20"
+                className="quiz-card rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm dark:border-red-800/50 dark:bg-[#292524]"
               >
                 <div className="flex items-start gap-3">
                   <div className="grid h-10 w-10 place-items-center rounded-2xl bg-red-600 text-[18px] font-extrabold text-white" aria-hidden>
@@ -62,19 +62,19 @@ export function MistakesReview(props: {
                       {qText}
                     </div>
                     <div className="mt-3 grid gap-2 text-[14px] font-semibold">
-                      <div className="rounded-xl border border-red-200 bg-white px-3 py-2 text-red-900 dark:border-red-900/40 dark:bg-[#161B22] dark:text-red-100">
+                      <div className="rounded-xl border border-red-200 bg-white px-3 py-2 text-red-900 dark:border-red-900/40 dark:bg-[#292524] dark:text-red-100">
                         <span className="font-extrabold">
                           {t("employee.quiz.mistakes.yourAnswer")}
                         </span>
                         {m.selected ? `${m.selected}. ${selectedText}` : "—"}
                       </div>
-                      <div className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-emerald-900 dark:border-emerald-900/40 dark:bg-[#161B22] dark:text-emerald-100">
+                      <div className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-emerald-900 dark:border-emerald-900/40 dark:bg-[#292524] dark:text-emerald-100">
                         <span className="font-extrabold">
                           {t("employee.quiz.mistakes.correctAnswer")}
                         </span>
                         {m.correct}. {correctText}
                       </div>
-                      <div className="rounded-xl border border-[#E7E5E4] bg-white px-3 py-2 text-[#1C1917] dark:border-[#44403C] dark:bg-[#161B22] dark:text-white">
+                      <div className="rounded-xl border border-[#E7E5E4] bg-white px-3 py-2 text-[#1C1917] dark:border-[#44403C] dark:bg-[#292524] dark:text-[#F5F5F4]">
                         <span className="font-extrabold">
                           {t("employee.quiz.mistakes.explanation")}
                         </span>

@@ -1,9 +1,12 @@
 import { useMemo, useState, useEffect, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Briefcase, X } from "lucide-react";
 import { CATEGORIES, type CategoryKey } from "@/config/categories";
 import type { DashboardEpiEmployee, DashboardEpiItem } from "@/utils/mapEpiSummaryToDashboard";
 import { getDaysUntilExpiry, getExpiryDate } from "@/utils/epiExpiry";
-import { getDisplayStatus, getStatusLabel } from "@/utils/epiStatus";
+import { getDisplayStatus } from "@/utils/epiStatus";
+import { useDashboardI18n, epiDisplayStatusLabel } from "@/pages/admin/dashboardI18n";
+import { resolveCurrentLng } from "@/i18n/persistLanguage";
 
 const NAVY = "#1e3a5f";
 
@@ -26,13 +29,6 @@ function roleAvatarFromLabel(roleLabel: string) {
     }
   }
   return { Icon: Briefcase, color: "#6B7280" };
-}
-
-function formatArDate(iso: string | undefined | null) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ar-MA", { day: "numeric", month: "long", year: "numeric" });
 }
 
 function resolveExpiry(item: DashboardEpiItem): Date | null {
@@ -63,7 +59,17 @@ function sectionCard(title: string, children: ReactNode) {
 }
 
 export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props) {
+  const { t, i18n } = useTranslation();
+  const { locale, nameOf, roleOf, epiOf } = useDashboardI18n();
+  const isRTL = resolveCurrentLng(i18n.language) === "ar";
   const [lightbox, setLightbox] = useState<string | null>(null);
+
+  const formatDate = (iso: string | undefined | null) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
+  };
 
   const detail = useMemo(() => {
     if (!selection) return null;
@@ -74,12 +80,11 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
       receivedDate: item.lastIssued ?? null,
       nextReplacementAt: item.nextReplacementAt ?? null,
     });
-    const statusMeta = getStatusLabel(visualStatus);
     const expiry = resolveExpiry(item);
     const daysLeft = expiry ? getDaysUntilExpiry(expiry) : null;
     const expiryTint = expiryColor(daysLeft);
     const photoUrl = item.photoProofPath?.trim() || null;
-    return { item, employee, visualStatus, statusMeta, expiry, daysLeft, expiryTint, photoUrl };
+    return { item, employee, visualStatus, expiry, daysLeft, expiryTint, photoUrl };
   }, [selection]);
 
   useEffect(() => {
@@ -93,17 +98,38 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
 
   if (!selection || !detail) return null;
 
-  const { item, employee, visualStatus, statusMeta, expiry, daysLeft, expiryTint, photoUrl } = detail;
+  const { item, employee, visualStatus, expiry, daysLeft, expiryTint, photoUrl } = detail;
+  const statusLabel = epiDisplayStatusLabel(t, visualStatus);
+  const statusMeta = getDisplayStatus({
+    status: item.status,
+    name: item.label,
+    receivedDate: item.lastIssued ?? null,
+    nextReplacementAt: item.nextReplacementAt ?? null,
+  });
+  const statusColors: Record<string, { color: string; bgColor: string }> = {
+    not_issued: { color: "#6B7280", bgColor: "#F3F4F6" },
+    pending: { color: "#EA580C", bgColor: "#FFF7ED" },
+    received: { color: "#16A34A", bgColor: "#ECFDF5" },
+    needs_renewal: { color: "#DC2626", bgColor: "#FEF2F2" },
+  };
+  const chipStyle = statusColors[statusMeta] ?? statusColors.not_issued;
 
   const showRenewalAction = visualStatus === "needs_renewal";
   const showPendingInfo = visualStatus === "pending";
   const showOkInfo = visualStatus === "received";
 
+  const daysLeftLabel =
+    daysLeft != null
+      ? daysLeft < 0
+        ? t("admin.page.epi.itemDetail.daysExpired", { n: Math.abs(daysLeft) })
+        : t("admin.page.epi.itemDetail.daysLeft", { n: daysLeft })
+      : "—";
+
   return (
     <>
       <div
         className="fixed inset-0 z-[3200] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-        dir="rtl"
+        dir={isRTL ? "rtl" : "ltr"}
         role="dialog"
         aria-modal="true"
         onClick={onClose}
@@ -118,7 +144,7 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
                 type="button"
                 onClick={onClose}
                 className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E7E5E4] bg-white text-[#374151] transition hover:bg-[#F3F4F6] dark:border-[#30363D] dark:bg-[#161B22] dark:text-white"
-                aria-label="إغلاق"
+                aria-label={t("admin.page.epi.itemDetail.close")}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -127,14 +153,14 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
                   <span className="text-2xl" aria-hidden>
                     {item.emoji}
                   </span>
-                  <h2 className="text-[17px] font-extrabold text-[#1e3a5f] dark:text-white">{item.label}</h2>
+                  <h2 className="text-[17px] font-extrabold text-[#1e3a5f] dark:text-white">{epiOf(item.type, item.label)}</h2>
                 </div>
                 <div className="mt-2 flex justify-end">
                   <span
                     className="inline-flex rounded-full px-3 py-1 text-[12px] font-bold"
-                    style={{ background: statusMeta.bgColor, color: statusMeta.color }}
+                    style={{ background: chipStyle.bgColor, color: chipStyle.color }}
                   >
-                    {statusMeta.arabic}
+                    {statusLabel}
                   </span>
                 </div>
               </div>
@@ -143,7 +169,7 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
 
           <div className="max-h-[min(70vh,640px)] space-y-3 overflow-y-auto px-5 py-4">
             {sectionCard(
-              "معلومات الموظف",
+              t("admin.page.epi.itemDetail.employeeInfo"),
               <div className="flex items-center gap-3">
                 {(() => {
                   const { Icon, color } = roleAvatarFromLabel(employee.role);
@@ -157,49 +183,51 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
                   );
                 })()}
                 <div className="min-w-0">
-                  <div className="text-[14px] font-extrabold text-[#111827] dark:text-white">{employee.name}</div>
+                  <div className="text-[14px] font-extrabold text-[#111827] dark:text-white">{nameOf(employee.name)}</div>
                   <div className="text-[12px] font-semibold text-[#6B7280]">{employee.employeeCode}</div>
-                  <div className="text-[12px] font-semibold text-[#374151] dark:text-stone-300">{employee.role}</div>
+                  <div className="text-[12px] font-semibold text-[#374151] dark:text-stone-300">
+                    {roleOf(employee.role, employee.categoryKey)}
+                  </div>
                 </div>
               </div>
             )}
 
             {sectionCard(
-              "تفاصيل المعدة",
+              t("admin.page.epi.itemDetail.equipmentDetails"),
               <div className="space-y-2 text-[13px]">
                 <div className="flex justify-between gap-3">
-                  <span className="font-semibold text-[#374151] dark:text-stone-300">المعدة</span>
-                  <span className="font-bold text-[#111827] dark:text-white">{item.label}</span>
+                  <span className="font-semibold text-[#374151] dark:text-stone-300">{t("admin.page.epi.itemDetail.equipment")}</span>
+                  <span className="font-bold text-[#111827] dark:text-white">{epiOf(item.type, item.label)}</span>
                 </div>
                 <div className="flex justify-between gap-3">
-                  <span className="font-semibold text-[#374151] dark:text-stone-300">تاريخ الإصدار</span>
-                  <span className="font-bold text-[#111827] dark:text-white">{formatArDate(item.lastIssued)}</span>
+                  <span className="font-semibold text-[#374151] dark:text-stone-300">{t("admin.page.epi.itemDetail.issueDate")}</span>
+                  <span className="font-bold text-[#111827] dark:text-white">{formatDate(item.lastIssued)}</span>
                 </div>
                 <div className="flex justify-between gap-3">
-                  <span className="font-semibold text-[#374151] dark:text-stone-300">تاريخ الاستلام</span>
+                  <span className="font-semibold text-[#374151] dark:text-stone-300">{t("admin.page.epi.itemDetail.receiptDate")}</span>
                   <span
                     className={`font-bold ${item.confirmedAt ? "text-[#111827] dark:text-white" : "text-amber-600"}`}
                   >
-                    {item.confirmedAt ? formatArDate(item.confirmedAt) : "لم يُؤكد بعد"}
+                    {item.confirmedAt ? formatDate(item.confirmedAt) : t("admin.page.epi.itemDetail.notConfirmedYet")}
                   </span>
                 </div>
                 <div className="flex justify-between gap-3">
-                  <span className="font-semibold text-[#374151] dark:text-stone-300">تاريخ الانتهاء</span>
+                  <span className="font-semibold text-[#374151] dark:text-stone-300">{t("admin.page.epi.itemDetail.expiryDate")}</span>
                   <span className="font-bold" style={{ color: expiryTint }}>
-                    {expiry ? formatArDate(expiry.toISOString()) : "—"}
+                    {expiry ? formatDate(expiry.toISOString()) : "—"}
                   </span>
                 </div>
                 <div className="flex justify-between gap-3">
-                  <span className="font-semibold text-[#374151] dark:text-stone-300">أيام متبقية</span>
+                  <span className="font-semibold text-[#374151] dark:text-stone-300">{t("admin.page.epi.itemDetail.daysRemaining")}</span>
                   <span className="font-bold" style={{ color: expiryTint }}>
-                    {daysLeft != null ? (daysLeft < 0 ? `منتهي (${Math.abs(daysLeft)} يوم)` : `${daysLeft} يوم`) : "—"}
+                    {daysLeftLabel}
                   </span>
                 </div>
               </div>
             )}
 
             {sectionCard(
-              "صورة تأكيد الاستلام",
+              t("admin.page.epi.itemDetail.receiptPhoto"),
               photoUrl ? (
                 <div className="space-y-2">
                   <button
@@ -209,13 +237,13 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
                   >
                     <img
                       src={photoUrl}
-                      alt="إثبات الاستلام"
+                      alt={t("admin.page.epi.itemDetail.receiptProofAlt")}
                       className="mx-auto max-h-[300px] w-full object-contain"
                     />
                   </button>
                   {item.confirmedAt ? (
                     <p className="text-center text-[11px] font-semibold text-[#6B7280]">
-                      تم التأكيد بتاريخ: {formatArDate(item.confirmedAt)}
+                      {t("admin.page.epi.itemDetail.confirmedOn", { date: formatDate(item.confirmedAt) })}
                     </p>
                   ) : null}
                   <a
@@ -223,7 +251,7 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
                     download
                     className="inline-flex w-full items-center justify-center rounded-xl border border-[#1e3a5f] px-4 py-2.5 text-[13px] font-bold text-[#1e3a5f] transition hover:bg-[#1e3a5f]/5"
                   >
-                    ⬇ تحميل الصورة
+                    {t("admin.page.epi.itemDetail.downloadPhoto")}
                   </a>
                 </div>
               ) : visualStatus === "received" || visualStatus === "needs_renewal" ? (
@@ -231,7 +259,7 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
                   <span className="text-3xl opacity-40" aria-hidden>
                     📷
                   </span>
-                  <p className="mt-2 text-[13px] font-semibold text-[#6B7280]">تم التأكيد بدون صورة</p>
+                  <p className="mt-2 text-[13px] font-semibold text-[#6B7280]">{t("admin.page.epi.itemDetail.confirmedWithoutPhoto")}</p>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-amber-200 bg-amber-50 px-4 py-8 text-center dark:border-amber-900/40 dark:bg-amber-500/10">
@@ -239,7 +267,7 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
                     ⏳
                   </span>
                   <p className="mt-2 text-[13px] font-semibold text-amber-800 dark:text-amber-200">
-                    لم يتم تأكيد الاستلام بعد
+                    {t("admin.page.epi.itemDetail.receiptNotConfirmed")}
                   </p>
                 </div>
               )
@@ -257,12 +285,16 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
                 className="w-full rounded-xl px-4 py-3 text-[14px] font-extrabold text-white transition hover:opacity-95"
                 style={{ background: NAVY }}
               >
-                إرسال معدة جديدة
+                {t("admin.page.epi.itemDetail.sendNewEquipment")}
               </button>
             ) : showPendingInfo ? (
-              <p className="text-center text-[13px] font-bold text-amber-700 dark:text-amber-300">في انتظار تأكيد الموظف</p>
+              <p className="text-center text-[13px] font-bold text-amber-700 dark:text-amber-300">
+                {t("admin.page.epi.itemDetail.awaitingEmployeeConfirm")}
+              </p>
             ) : showOkInfo ? (
-              <p className="text-center text-[13px] font-bold text-emerald-700 dark:text-emerald-300">✅ المعدة في حالة جيدة</p>
+              <p className="text-center text-[13px] font-bold text-emerald-700 dark:text-emerald-300">
+                {t("admin.page.epi.itemDetail.equipmentOk")}
+              </p>
             ) : null}
           </div>
         </div>
@@ -279,13 +311,13 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
             type="button"
             onClick={() => setLightbox(null)}
             className="absolute end-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
-            aria-label="إغلاق"
+            aria-label={t("admin.page.epi.itemDetail.close")}
           >
             <X className="h-5 w-5" />
           </button>
           <img
             src={lightbox}
-            alt="إثبات الاستلام"
+            alt={t("admin.page.epi.itemDetail.receiptProofAlt")}
             className="max-h-[90vh] max-w-full rounded-xl object-contain"
             onClick={(e) => e.stopPropagation()}
           />

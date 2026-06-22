@@ -51,18 +51,60 @@ export const COURSE_PDF_MAP: Record<string, { category: string; filename: string
 export function getCoursePdfUrl(slugOrTitle: string): string {
   if (!slugOrTitle) return "";
 
+  const normPath = (s: string) => s.trim().replace(/\s+/g, " ");
+
+  // Normalize for matching (Arabic-safe, tolerant of punctuation, (1), trailing numbers, etc.)
+  const normMatch = (input: string) => {
+    const s = (input ?? "")
+      .normalize("NFC")
+      // Remove tatweel
+      .replace(/\u0640/g, "")
+      // Unify common Arabic letter variants
+      .replace(/[أإآٱ]/g, "ا")
+      .replace(/ى/g, "ي")
+      // Normalize common "و/أو" differences (keep both as و separated word)
+      .replace(/\bاو\b/g, "او")
+      // Drop parenthetical suffixes like (1)
+      .replace(/\([^)]*\)/g, " ")
+      // Remove file extension if present
+      .replace(/\.pdf$/i, "")
+      // Replace separators/punctuation with spaces
+      .replace(/[-_/]+/g, " ")
+      // Collapse whitespace
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+
+    // Also allow matching without trailing standalone numbers (e.g. "الجمع 2")
+    return s.replace(/\s+\d+$/g, "").trim();
+  };
+
   // Direct slug match
   const bySlug = COURSE_PDF_MAP[slugOrTitle];
   if (bySlug) {
-    return `/courses/${bySlug.category}/${bySlug.filename}.pdf`;
+    return `/courses/${bySlug.category}/${normPath(bySlug.filename)}.pdf`;
   }
 
-  // Fuzzy match by filename
-  const entry = Object.values(COURSE_PDF_MAP).find(
-    (e) => e.filename === slugOrTitle || slugOrTitle.includes(e.filename)
-  );
-  if (entry) {
-    return `/courses/${entry.category}/${entry.filename}.pdf`;
+  // Fuzzy match by slug key OR filename (tolerant of (1), "أو"/"او", trailing numbers, etc.)
+  const hay = normMatch(slugOrTitle);
+  const entries = Object.entries(COURSE_PDF_MAP);
+
+  const hit = entries.find(([k, v]) => {
+    const key = normMatch(k);
+    const fn = normMatch(v.filename);
+    return (
+      key === hay ||
+      fn === hay ||
+      hay.includes(fn) ||
+      fn.includes(hay) ||
+      hay.includes(key) ||
+      key.includes(hay)
+    );
+  });
+
+  if (hit) {
+    const [, entry] = hit;
+    return `/courses/${entry.category}/${normPath(entry.filename)}.pdf`;
   }
 
   return "";

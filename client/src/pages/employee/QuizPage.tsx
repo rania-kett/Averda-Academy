@@ -190,8 +190,8 @@ function SortableStepCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-xl border bg-white p-3 text-sm font-semibold shadow-sm dark:bg-[#1C1917] ${
-        disabled ? "border-stone-200 dark:border-white/10" : "border-stone-200 dark:border-white/10"
+      className={`quiz-card rounded-xl border bg-white p-3 text-sm font-semibold text-[#1C1917] shadow-sm dark:border-[#44403C] dark:bg-[#292524] dark:text-[#F5F5F4] ${
+        disabled ? "border-stone-200 dark:border-[#44403C]" : "border-stone-200 dark:border-[#44403C]"
       }`}
       {...attributes}
       {...listeners}
@@ -544,7 +544,7 @@ export function QuizPage() {
 
   if (!questions.length) {
     return (
-      <div className="rounded-2xl border border-[#E7E5E4] bg-white p-8 text-center dark:border-[#44403C] dark:bg-[#292524]">
+      <div className="quiz-card rounded-2xl border border-[#E7E5E4] bg-white p-8 text-center dark:border-[#44403C] dark:bg-[#292524]">
         <p className="text-[#57534E] dark:text-stone-400">{t("employee.viewer.quizSoonLong")}</p>
         <Link to="/courses" className="mt-4 inline-block text-[#1e3a5f] dark:text-[#1e3a5f]">
           {t("employee.quiz.backCourses")}
@@ -631,7 +631,7 @@ export function QuizPage() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -50 }}
             transition={{ duration: 0.3 }}
-            className="rounded-2xl border border-[#E7E5E4] bg-white p-6 dark:border-[#44403C] dark:bg-[#292524]"
+            className="quiz-card rounded-2xl border border-[#E7E5E4] bg-white p-6 dark:border-[#44403C] dark:bg-[#292524]"
             dir={lang === "ar" ? "rtl" : "ltr"}
           >
             <div className="mb-4 flex items-start justify-between gap-3">
@@ -645,7 +645,7 @@ export function QuizPage() {
                       void speakCourse({ courseId, lang: lang as any });
                     }}
                   />
-                  <span className="text-sm font-medium text-[#374151]">استمع للسؤال</span>
+                  <span className="text-sm font-medium text-[#374151] dark:text-stone-400">استمع للسؤال</span>
                 </div>
 
                 <p
@@ -721,8 +721,10 @@ export function QuizPage() {
                       disabled={confirmed}
                       onClick={() => !confirmed && setSelected(true)}
                       className={`h-14 w-full rounded-xl border px-4 text-[15px] font-extrabold transition ${
-                        selected === true ? "border-emerald-400 bg-emerald-50 text-emerald-900" : "border-stone-200 bg-white text-stone-900"
-                      } dark:border-white/10 dark:bg-[#1C1917] dark:text-white`}
+                        selected === true
+                          ? "border-emerald-400 bg-emerald-50 text-emerald-900 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          : "border-stone-200 bg-white text-stone-900 dark:border-[#44403C] dark:bg-[#292524] dark:text-[#F5F5F4]"
+                      }`}
                     >
                       {lang === "ar" ? "✓ صحيح" : lang === "fr" ? "✓ Vrai" : "✓ True"}
                     </button>
@@ -731,8 +733,10 @@ export function QuizPage() {
                       disabled={confirmed}
                       onClick={() => !confirmed && setSelected(false)}
                       className={`h-14 w-full rounded-xl border px-4 text-[15px] font-extrabold transition ${
-                        selected === false ? "border-emerald-400 bg-emerald-50 text-emerald-900" : "border-stone-200 bg-white text-stone-900"
-                      } dark:border-white/10 dark:bg-[#1C1917] dark:text-white`}
+                        selected === false
+                          ? "border-emerald-400 bg-emerald-50 text-emerald-900 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          : "border-stone-200 bg-white text-stone-900 dark:border-[#44403C] dark:bg-[#292524] dark:text-[#F5F5F4]"
+                      }`}
                     >
                       {lang === "ar" ? "✗ خطأ" : lang === "fr" ? "✗ Faux" : "✗ False"}
                     </button>
@@ -752,8 +756,8 @@ export function QuizPage() {
                       return (
                         <label
                           key={idx}
-                          className={`flex cursor-pointer items-center gap-3 rounded-xl border bg-white px-4 py-3 text-sm font-semibold transition dark:bg-[#1C1917] ${
-                            checked ? "border-[#1e3a5f] ring-2 ring-[#1e3a5f]/15" : "border-stone-200 dark:border-white/10"
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border bg-white px-4 py-3 text-sm font-semibold text-[#1C1917] transition dark:border-[#44403C] dark:bg-[#292524] dark:text-[#F5F5F4] ${
+                            checked ? "border-[#1e3a5f] ring-2 ring-[#1e3a5f]/15" : "border-stone-200"
                           }`}
                         >
                           <input
@@ -829,7 +833,7 @@ export function QuizPage() {
                 )}
 
                 {confirmed && (
-                  <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4 text-stone-900 dark:border-white/10 dark:bg-white/5 dark:text-white">
+                  <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4 text-stone-900 dark:border-[#44403C] dark:bg-[#292524] dark:text-[#F5F5F4]">
                     <p className="text-sm font-extrabold">
                       {lang === "ar" ? "تم تأكيد الإجابة" : lang === "fr" ? "Réponse confirmée" : "Answer confirmed"}
                     </p>
@@ -853,7 +857,7 @@ export function QuizPage() {
         ))}
       </div>
 
-      <div className="sticky bottom-0 z-10 -mx-4 bg-[#FAFAF7] px-4 pb-[env(safe-area-inset-bottom)] pt-3 dark:bg-[#1C1917]">
+      <div className="sticky bottom-0 z-10 -mx-4 bg-[#FAFAF7] px-4 pb-[env(safe-area-inset-bottom)] pt-3 dark:bg-[#1C1917]/95 dark:backdrop-blur-sm">
         <div className="flex gap-3">
         {!confirmed ? (
           <button
@@ -882,7 +886,7 @@ export function QuizPage() {
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-[#292524]" dir={lang === "ar" ? "rtl" : "ltr"}>
+          <div className="quiz-card w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:border dark:border-[#44403C] dark:bg-[#292524]" dir={lang === "ar" ? "rtl" : "ltr"}>
             <p className="text-[15px] font-extrabold text-[#1C1917] dark:text-white">
               {lang === "ar"
                 ? "هل تريد التخلي؟ سيتم اعتبار الاختبار غير مكتمل"
@@ -894,7 +898,7 @@ export function QuizPage() {
               <button
                 type="button"
                 onClick={() => setAbandonOpen(false)}
-                className="flex-1 min-h-[48px] rounded-xl border border-[#E7E5E4] bg-white font-bold text-[#1C1917] dark:border-[#44403C] dark:bg-[#1C1917] dark:text-white"
+                className="flex-1 min-h-[48px] rounded-xl border border-[#E7E5E4] bg-white font-bold text-[#1C1917] dark:border-[#44403C] dark:bg-[#1C1917] dark:text-[#F5F5F4]"
               >
                 {lang === "ar" ? "متابعة" : lang === "fr" ? "Continuer" : "Continue"}
               </button>

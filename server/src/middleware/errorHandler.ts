@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { Prisma } from "@prisma/client";
 
 export class AppError extends Error {
   constructor(
@@ -21,6 +22,15 @@ export function errorHandler(
     res.status(err.statusCode).json({
       error: err.message,
       code: err.code,
+    });
+    return;
+  }
+  if (
+    err instanceof Prisma.PrismaClientInitializationError ||
+    err instanceof Prisma.PrismaClientKnownRequestError
+  ) {
+    res.status(503).json({
+      error: "Database unavailable. Please try again later.",
     });
     return;
   }

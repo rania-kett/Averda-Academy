@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
-import type { DashboardEpiEmployee } from "@/utils/mapEpiSummaryToDashboard";
+import { useTranslation } from "react-i18next";
+import { COLORS } from "@/components/admin/adminThemeTokens";
+import { resolveCurrentLng } from "@/i18n/persistLanguage";
+import { buildExportLocale } from "@/utils/adminExportI18n";
 import {
   exportEmployeesExcel,
   exportEpiExcel,
@@ -9,11 +13,7 @@ import {
   type ExportEmployeeRow,
   type ExportWeeklyRow,
 } from "@/utils/adminDashboardExport";
-
-const NAVY = "#1e3a5f";
-const WHITE = "#ffffff";
-const BORDER = "#e2e8f0";
-const TEXT_MUTED = "#64748b";
+import type { DashboardEpiEmployee } from "@/utils/mapEpiSummaryToDashboard";
 
 type Props = {
   employees: ExportEmployeeRow[];
@@ -23,73 +23,66 @@ type Props = {
   onExported: () => void;
 };
 
-const MENU_ITEMS = [
-  { id: "employees" as const, label: "تصدير بيانات الموظفين" },
-  { id: "epi" as const, label: "تصدير بيانات EPI" },
-  { id: "performance" as const, label: "تصدير ملخص الأداء" },
-];
+const MENU_W = 260;
 
 export function AdminExportDropdown({ employees, epiEmployees, courses, weekly, onExported }: Props) {
+  const { t, i18n } = useTranslation();
+  const lng = resolveCurrentLng(i18n.language);
+  const exportLocale = useMemo(() => buildExportLocale(t, lng), [t, lng]);
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+
+  const MENU_ITEMS = [
+    { id: "employees" as const, label: t("admin.page.export.employees") },
+    { id: "epi" as const, label: t("admin.page.export.epi") },
+    { id: "performance" as const, label: t("admin.page.export.performance") },
+  ];
+
+  useEffect(() => {
+    if (!open || !btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    let left = rect.left;
+    if (left + MENU_W > window.innerWidth - 8) left = window.innerWidth - MENU_W - 8;
+    if (left < 8) left = 8;
+    setMenuPos({ top: rect.bottom + 6, left });
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    const onDoc = (e: MouseEvent) => {
+      const n = e.target as Node;
+      if (btnRef.current?.contains(n) || menuRef.current?.contains(n)) return;
+      setOpen(false);
     };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
   const runExport = async (id: (typeof MENU_ITEMS)[number]["id"]) => {
     setOpen(false);
-    if (id === "employees") await exportEmployeesExcel(employees);
-    else if (id === "epi") await exportEpiExcel(epiEmployees);
-    else await exportPerformanceExcel(employees, courses, weekly);
+    if (id === "employees") await exportEmployeesExcel(employees, exportLocale);
+    else if (id === "epi") await exportEpiExcel(epiEmployees, exportLocale);
+    else await exportPerformanceExcel(employees, courses, weekly, exportLocale);
     onExported();
   };
 
-  return (
-    <div ref={rootRef} style={{ position: "relative" }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "10px 20px",
-          borderRadius: 10,
-          border: `2px solid ${NAVY}`,
-          background: WHITE,
-          color: NAVY,
-          fontSize: 14,
-          fontWeight: 700,
-          cursor: "pointer",
-        }}
-      >
-        تصدير
-        <ChevronDown size={16} strokeWidth={2.5} aria-hidden style={{ transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }} />
-      </button>
-      {open && (
+  const menu = open
+    ? createPortal(
         <div
+          ref={menuRef}
           role="menu"
+          className="overflow-hidden rounded-xl border py-1"
           style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            left: 0,
-            minWidth: 240,
-            background: WHITE,
-            borderRadius: 10,
-            border: `1px solid ${BORDER}`,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-            zIndex: 100,
-            overflow: "hidden",
+            position: "fixed",
+            top: menuPos.top,
+            left: menuPos.left,
+            zIndex: 9999,
+            minWidth: MENU_W,
+            background: COLORS.white,
+            borderColor: COLORS.border,
+            boxShadow: COLORS.shadowLg,
           }}
         >
           {MENU_ITEMS.map((item) => (
@@ -98,33 +91,56 @@ export function AdminExportDropdown({ employees, epiEmployees, courses, weekly, 
               type="button"
               role="menuitem"
               onClick={() => void runExport(item.id)}
+              className="block w-full cursor-pointer border-none px-4 py-3 text-start text-[13px] font-semibold transition"
               style={{
-                display: "block",
-                width: "100%",
-                padding: "12px 16px",
-                border: "none",
-                background: WHITE,
-                color: NAVY,
-                fontSize: 13,
-                fontWeight: 600,
-                textAlign: "right",
-                cursor: "pointer",
+                background: COLORS.white,
+                color: COLORS.brand,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#f1f5f9";
+                e.currentTarget.style.background = COLORS.hover;
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = WHITE;
+                e.currentTarget.style.background = COLORS.white;
               }}
             >
               {item.label}
             </button>
           ))}
-          <div style={{ padding: "8px 16px", fontSize: 11, color: TEXT_MUTED, borderTop: `1px solid ${BORDER}` }}>
-            يستخدم البيانات المعروضة حالياً
+          <div
+            className="border-t px-4 py-2 text-[11px]"
+            style={{ color: COLORS.textMuted, borderColor: COLORS.border }}
+          >
+            {t("admin.page.export.hint")}
           </div>
-        </div>
-      )}
-    </div>
+        </div>,
+        document.body
+      )
+    : null;
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border-2 px-5 py-2.5 text-sm font-bold transition hover:opacity-90"
+        style={{
+          borderColor: COLORS.navy,
+          background: COLORS.btnBg,
+          color: COLORS.brand,
+        }}
+      >
+        {t("admin.page.export.label")}
+        <ChevronDown
+          size={16}
+          strokeWidth={2.5}
+          aria-hidden
+          style={{ transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }}
+        />
+      </button>
+      {menu}
+    </>
   );
 }

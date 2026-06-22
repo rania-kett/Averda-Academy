@@ -18,20 +18,12 @@ const translations = {
         accent: "#3B9FD4",
       },
       {
-        title: "We Turn Waste Into Value",
-        text: "We give materials a second life through recovery and recycling — creating a circular economy.",
+        title: "Driven by Purpose",
+        text: "We aim to recover more than 80% of the waste we collect — a bold mission that changes lives.",
         stat: "80%",
         statLabel: "Recovery target",
         icon: "recycle",
         accent: "#2080B8",
-      },
-      {
-        title: "Driven by Purpose",
-        text: "We aim to recover more than 80% of the waste we collect — a bold mission that changes lives.",
-        stat: "15+",
-        statLabel: "Countries of operation",
-        icon: "leaf",
-        accent: "#3B9FD4",
       },
       {
         title: "Your Role Matters",
@@ -68,14 +60,6 @@ const translations = {
         statLabel: "Objectif de valorisation",
         icon: "recycle",
         accent: "#2080B8",
-      },
-      {
-        title: "Une mission claire",
-        text: "Recycler plus de 80% des déchets collectés — une ambition qui change des vies.",
-        stat: "15+",
-        statLabel: "Pays d'opération",
-        icon: "leaf",
-        accent: "#3B9FD4",
       },
       {
         title: "Votre rôle compte",

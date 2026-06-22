@@ -1,8 +1,12 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type { DashboardEpiEmployee, DashboardEpiItem } from "@/utils/mapEpiSummaryToDashboard";
 import { getExpiryDate } from "@/utils/epiExpiry";
 import { CATEGORIES, type CategoryKey } from "@/config/categories";
 import { Briefcase } from "lucide-react";
+import { useDashboardI18n } from "@/pages/admin/dashboardI18n";
+import { resolveCurrentLng } from "@/i18n/persistLanguage";
 
 type Props = {
   epiData: DashboardEpiEmployee[];
@@ -80,11 +84,11 @@ function roleAvatarFromLabel(roleLabel: string) {
   return { Icon: Briefcase, color: "#6B7280" };
 }
 
-function urgencyBadge(daysDiff: number) {
-  if (daysDiff < 0) return { text: "منتهي ⛔", color: "#DC2626" };
-  if (daysDiff === 0) return { text: "اليوم ⚠️", color: "#EA580C" };
-  if (daysDiff <= 7) return { text: `خلال ${daysDiff} أيام ⚠️`, color: "#EA580C" };
-  return { text: `خلال ${daysDiff} يوم`, color: "#16A34A" };
+function urgencyBadge(daysDiff: number, t: TFunction) {
+  if (daysDiff < 0) return { text: t("admin.page.epi.expiryCalendar.expiredBadge"), color: "#DC2626" };
+  if (daysDiff === 0) return { text: t("admin.page.epi.expiryCalendar.todayBadge"), color: "#EA580C" };
+  if (daysDiff <= 7) return { text: t("admin.page.epi.expiryCalendar.withinDaysBadge", { n: daysDiff }), color: "#EA580C" };
+  return { text: t("admin.page.epi.expiryCalendar.withinDayBadge", { n: daysDiff }), color: "#16A34A" };
 }
 
 function hasAnyIssuedEpi(epiData: DashboardEpiEmployee[]) {
@@ -94,13 +98,23 @@ function hasAnyIssuedEpi(epiData: DashboardEpiEmployee[]) {
 function EventRow({
   ev,
   onIssueEpi,
+  locale,
+  nameOf,
+  roleOf,
+  epiOf,
+  t,
 }: {
   ev: CalendarEvent;
   onIssueEpi: (emp: DashboardEpiEmployee, itemCode?: string) => void;
+  locale: string;
+  nameOf: (name: string) => string;
+  roleOf: (role: string, categoryKey?: CategoryKey | null) => string;
+  epiOf: (code: string, fallback: string) => string;
+  t: TFunction;
 }) {
   const { Icon, color } = roleAvatarFromLabel(ev.employee.role);
-  const badge = urgencyBadge(ev.daysDiff);
-  const expiryFormatted = ev.expiryDate.toLocaleDateString("ar-MA", {
+  const badge = urgencyBadge(ev.daysDiff, t);
+  const expiryFormatted = ev.expiryDate.toLocaleDateString(locale, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -113,12 +127,14 @@ function EventRow({
           <Icon size={16} color="#fff" strokeWidth={2.75} aria-hidden />
         </div>
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-extrabold text-[#111827]">{ev.employee.name}</div>
-          <div className="text-[11px] font-semibold text-[#6B7280]">{ev.employee.role}</div>
+          <div className="truncate text-[13px] font-extrabold text-[#111827]">{nameOf(ev.employee.name)}</div>
+          <div className="text-[11px] font-semibold text-[#6B7280]">{roleOf(ev.employee.role, ev.employee.categoryKey)}</div>
           <div className="mt-1 text-[12px] font-bold text-[#374151]">
-            {ev.item.emoji} {ev.item.label}
+            {ev.item.emoji} {epiOf(ev.item.type, ev.item.label)}
           </div>
-          <div className="mt-1 text-[11px] font-semibold text-[#6B7280]">ينتهي: {expiryFormatted}</div>
+          <div className="mt-1 text-[11px] font-semibold text-[#6B7280]">
+            {t("admin.page.epi.expiryCalendar.expiresOn")} {expiryFormatted}
+          </div>
           <span
             className="mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-extrabold"
             style={{ color: badge.color, background: `${badge.color}14` }}
@@ -133,13 +149,16 @@ function EventRow({
         className="shrink-0 rounded-lg px-3 py-2 text-[11px] font-extrabold text-white"
         style={{ background: "#1A3C5E" }}
       >
-        إصدار تجديد
+        {t("admin.page.epi.expiryCalendar.issueRenewal")}
       </button>
     </div>
   );
 }
 
 export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
+  const { t, i18n } = useTranslation();
+  const { locale, nameOf, roleOf, epiOf } = useDashboardI18n();
+  const isRTL = resolveCurrentLng(i18n.language) === "ar";
   const [month, setMonth] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -188,7 +207,7 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
       list.sort((a, b) => {
         const u = urgencySortOrder(a.urgency) - urgencySortOrder(b.urgency);
         if (u !== 0) return u;
-        return a.employee.name.localeCompare(b.employee.name, "ar");
+        return a.employee.name.localeCompare(b.employee.name, locale);
       });
       byDay.set(k, list);
     }
@@ -202,7 +221,7 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
     const within30 = all.filter((e) => e.daysDiff > 7 && e.daysDiff <= 30).length;
 
     return { eventsByDay: byDay, allEvents: all, stats: { expired, within7, within30 } };
-  }, [epiData]);
+  }, [epiData, locale]);
 
   const filteredEvents = useMemo(() => {
     if (!urgencyFilter) return allEvents;
@@ -219,14 +238,14 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
     return map;
   }, [filteredEvents]);
 
-  const headerLabel = month.toLocaleDateString("ar-MA", { month: "long", year: "numeric" });
+  const headerLabel = month.toLocaleDateString(locale, { month: "long", year: "numeric" });
 
   const weekDays = useMemo(() => {
     const base = new Date(2026, 0, 5);
     return Array.from({ length: 7 }, (_, i) =>
-      new Date(base.getFullYear(), base.getMonth(), base.getDate() + i).toLocaleDateString("ar-MA", { weekday: "short" })
+      new Date(base.getFullYear(), base.getMonth(), base.getDate() + i).toLocaleDateString(locale, { weekday: "short" })
     );
-  }, []);
+  }, [locale]);
 
   const days = useMemo(() => {
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -255,9 +274,9 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
   const hiddenPopoverCount = Math.max(0, selectedEvents.length - 3);
 
   const statCards = [
-    { id: "expired" as const, label: "منتهية الصلاحية", count: stats.expired, color: "#DC2626", bg: "#FEF2F2", icon: "⛔" },
-    { id: "within7" as const, label: "تنتهي هذا الأسبوع", count: stats.within7, color: "#EA580C", bg: "#FFF7ED", icon: "⚠️" },
-    { id: "within30" as const, label: "تنتهي هذا الشهر", count: stats.within30, color: "#CA8A04", bg: "#FEFCE8", icon: "📅" },
+    { id: "expired" as const, label: t("admin.page.epi.expiryCalendar.statExpired"), count: stats.expired, color: "#DC2626", bg: "#FEF2F2", icon: "⛔" },
+    { id: "within7" as const, label: t("admin.page.epi.expiryCalendar.statWithin7"), count: stats.within7, color: "#EA580C", bg: "#FFF7ED", icon: "⚠️" },
+    { id: "within30" as const, label: t("admin.page.epi.expiryCalendar.statWithin30"), count: stats.within30, color: "#CA8A04", bg: "#FEFCE8", icon: "📅" },
   ];
 
   if (!issued) {
@@ -267,9 +286,9 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
           <div className="text-5xl" aria-hidden>
             📅
           </div>
-          <h3 className="mt-4 text-[17px] font-extrabold text-[#1A3C5E]">لا توجد مواعيد بعد</h3>
+          <h3 className="mt-4 text-[17px] font-extrabold text-[#1A3C5E]">{t("admin.page.epi.expiryCalendar.emptyTitle")}</h3>
           <p className="mt-2 max-w-md text-[13px] font-semibold leading-relaxed text-[#6B7280]">
-            ستظهر مواعيد انتهاء المعدات هنا بعد إصدارها للموظفين وتأكيد استلامها
+            {t("admin.page.epi.expiryCalendar.emptySubtitle")}
           </p>
         </div>
       </div>
@@ -285,14 +304,14 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
             onClick={() => setViewMode("calendar")}
             className={`rounded-lg px-3 py-1.5 text-[12px] font-extrabold transition ${viewMode === "calendar" ? "bg-[#1A3C5E] text-white" : "text-[#1A3C5E]"}`}
           >
-            📅 تقويم
+            {t("admin.page.epi.expiryCalendar.viewCalendar")}
           </button>
           <button
             type="button"
             onClick={() => setViewMode("list")}
             className={`rounded-lg px-3 py-1.5 text-[12px] font-extrabold transition ${viewMode === "list" ? "bg-[#1A3C5E] text-white" : "text-[#1A3C5E]"}`}
           >
-            📋 قائمة
+            {t("admin.page.epi.expiryCalendar.viewList")}
           </button>
         </div>
         {viewMode === "calendar" ? (
@@ -314,7 +333,7 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
             </button>
           </div>
         ) : (
-          <div className="text-[13px] font-bold text-[#6B7280]">{filteredEvents.length} موعد</div>
+          <div className="text-[13px] font-bold text-[#6B7280]">{t("admin.page.epi.expiryCalendar.appointmentCount", { n: filteredEvents.length })}</div>
         )}
       </div>
 
@@ -348,41 +367,43 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
       </div>
 
       {viewMode === "list" ? (
-        <div className="overflow-x-auto px-4 pb-4" dir="rtl">
+        <div className="overflow-x-auto px-4 pb-4" dir={isRTL ? "rtl" : "ltr"}>
           <table className="w-full min-w-[640px] border-collapse text-[13px]">
             <thead>
               <tr className="border-b border-[#E6E6E6] text-[12px] font-extrabold text-[#6B7280]">
-                <th className="px-3 py-2 text-start">الموظف</th>
-                <th className="px-3 py-2 text-start">المعدة</th>
-                <th className="px-3 py-2 text-start">تاريخ الانتهاء</th>
-                <th className="px-3 py-2 text-start">الأيام المتبقية</th>
-                <th className="px-3 py-2 text-start">إجراء</th>
+                <th className="px-3 py-2 text-start">{t("admin.page.epi.expiryCalendar.tableEmployee")}</th>
+                <th className="px-3 py-2 text-start">{t("admin.page.epi.expiryCalendar.tableEquipment")}</th>
+                <th className="px-3 py-2 text-start">{t("admin.page.epi.expiryCalendar.tableExpiryDate")}</th>
+                <th className="px-3 py-2 text-start">{t("admin.page.epi.expiryCalendar.tableDaysLeft")}</th>
+                <th className="px-3 py-2 text-start">{t("admin.page.epi.expiryCalendar.tableAction")}</th>
               </tr>
             </thead>
             <tbody>
               {filteredEvents.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-8 text-center font-semibold text-[#6B7280]">
-                    لا توجد مواعيد مطابقة للفلتر
+                    {t("admin.page.epi.expiryCalendar.noFilterMatch")}
                   </td>
                 </tr>
               ) : (
                 filteredEvents.map((ev) => {
-                  const badge = urgencyBadge(ev.daysDiff);
+                  const badge = urgencyBadge(ev.daysDiff, t);
                   return (
                     <tr key={ev.key} className="border-b border-[#F3F4F6]">
                       <td className="px-3 py-3">
-                        <div className="font-extrabold text-[#111827]">{ev.employee.name}</div>
-                        <div className="text-[11px] text-[#6B7280]">{ev.employee.role}</div>
+                        <div className="font-extrabold text-[#111827]">{nameOf(ev.employee.name)}</div>
+                        <div className="text-[11px] text-[#6B7280]">{roleOf(ev.employee.role, ev.employee.categoryKey)}</div>
                       </td>
                       <td className="px-3 py-3 font-bold">
-                        {ev.item.emoji} {ev.item.label}
+                        {ev.item.emoji} {epiOf(ev.item.type, ev.item.label)}
                       </td>
                       <td className="px-3 py-3 font-semibold">
-                        {ev.expiryDate.toLocaleDateString("ar-MA", { day: "numeric", month: "long", year: "numeric" })}
+                        {ev.expiryDate.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" })}
                       </td>
                       <td className="px-3 py-3 font-extrabold" style={{ color: badge.color }}>
-                        {ev.daysDiff < 0 ? `منتهي (${Math.abs(ev.daysDiff)} يوم)` : `${ev.daysDiff} يوم`}
+                        {ev.daysDiff < 0
+                          ? t("admin.page.epi.expiryCalendar.daysLeftExpired", { n: Math.abs(ev.daysDiff) })
+                          : t("admin.page.epi.expiryCalendar.daysLeft", { n: ev.daysDiff })}
                       </td>
                       <td className="px-3 py-3">
                         <button
@@ -391,7 +412,7 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
                           className="rounded-lg px-3 py-1.5 text-[11px] font-extrabold text-white"
                           style={{ background: "#1A3C5E" }}
                         >
-                          إصدار تجديد
+                          {t("admin.page.epi.expiryCalendar.issueRenewal")}
                         </button>
                       </td>
                     </tr>
@@ -402,7 +423,7 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
           </table>
         </div>
       ) : (
-        <div dir="rtl" className="px-4 pb-4">
+        <div dir={isRTL ? "rtl" : "ltr"} className="px-4 pb-4">
           <div className="mb-2 grid grid-cols-7 gap-2">
             {weekDays.map((d, i) => (
               <div key={i} className="py-1 text-center text-[12px] font-extrabold text-[#5B6673]">
@@ -451,13 +472,13 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
           </div>
 
           <div className="mt-3 flex flex-wrap gap-4 text-[12px] font-bold text-[#5B6673]">
-            <span>🔴 منتهي</span>
-            <span>🟠 خلال 7 أيام</span>
-            <span>🟡 خلال 30 يوم</span>
-            <span>🟢 لاحقاً</span>
+            <span>{t("admin.page.epi.expiryCalendar.legendExpired")}</span>
+            <span>{t("admin.page.epi.expiryCalendar.legendWithin7")}</span>
+            <span>{t("admin.page.epi.expiryCalendar.legendWithin30")}</span>
+            <span>{t("admin.page.epi.expiryCalendar.legendLater")}</span>
             {urgencyFilter ? (
               <button type="button" onClick={() => setUrgencyFilter(null)} className="text-[#1A3C5E] underline">
-                إلغاء الفلتر
+                {t("admin.page.epi.expiryCalendar.clearFilter")}
               </button>
             ) : null}
           </div>
@@ -465,7 +486,7 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
           {selectedDayKey ? (
             <div className="mt-4 rounded-xl border border-[#E6E6E6] bg-white p-3">
               <div className="mb-3 text-[13px] font-extrabold text-[#1A3C5E]">
-                {new Date(selectedDayKey).toLocaleDateString("ar-MA", {
+                {new Date(selectedDayKey).toLocaleDateString(locale, {
                   weekday: "long",
                   year: "numeric",
                   month: "long",
@@ -473,11 +494,20 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
                 })}
               </div>
               {selectedEvents.length === 0 ? (
-                <div className="text-[12px] font-bold text-[#6B7280]">لا توجد معدات في هذا اليوم.</div>
+                <div className="text-[12px] font-bold text-[#6B7280]">{t("admin.page.epi.expiryCalendar.noItemsThisDay")}</div>
               ) : (
                 <div className="flex flex-col gap-2.5">
                   {visiblePopover.map((ev) => (
-                    <EventRow key={ev.key} ev={ev} onIssueEpi={onIssueEpi} />
+                    <EventRow
+                      key={ev.key}
+                      ev={ev}
+                      onIssueEpi={onIssueEpi}
+                      locale={locale}
+                      nameOf={nameOf}
+                      roleOf={roleOf}
+                      epiOf={epiOf}
+                      t={t}
+                    />
                   ))}
                   {!popoverExpanded && hiddenPopoverCount > 0 ? (
                     <button
@@ -485,7 +515,7 @@ export function EpiExpiryCalendar({ epiData, onIssueEpi }: Props) {
                       onClick={() => setPopoverExpanded(true)}
                       className="rounded-lg bg-[#F3F4F6] px-3 py-2 text-[12px] font-extrabold text-[#374151]"
                     >
-                      و {hiddenPopoverCount} آخرون
+                      {t("admin.page.epi.expiryCalendar.andMore", { n: hiddenPopoverCount })}
                     </button>
                   ) : null}
                 </div>

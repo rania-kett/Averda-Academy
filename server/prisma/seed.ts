@@ -1,5 +1,8 @@
-import { PrismaClient, Role, Lang } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
+
+const Role = { ADMIN: "ADMIN", EMPLOYEE: "EMPLOYEE" } as const;
+const Lang = { AR: "AR", FR: "FR", EN: "EN" } as const;
 
 const prisma = new PrismaClient();
 
@@ -201,7 +204,7 @@ type EmployeeSeed = {
   employeeId: string;
   name: string;
   categoryCode: (typeof CATEGORY_DEFS)[number]["code"];
-  lang: Lang;
+  lang: (typeof Lang)[keyof typeof Lang];
   shirtSize: string;
   pantsSize: string;
   shoeSize: string;

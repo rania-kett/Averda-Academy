@@ -28,6 +28,8 @@ export default {
           DEFAULT: "#1e3a5f",
           dark: "#163056",
           light: "#2d5a9e",
+          /** Lighter blue for links on dark backgrounds (e.g. « Voir tout ») */
+          soft: "#B8DCFF",
         },
         employee: {
           bg: "var(--employee-bg)",

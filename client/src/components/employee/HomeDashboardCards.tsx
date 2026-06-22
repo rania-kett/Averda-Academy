@@ -104,33 +104,37 @@ export function HomeDashboardCards({
           <Card className="cursor-pointer h-full flex flex-col">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-start gap-3">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#EEF2FF] text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-200" aria-hidden>
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#FFF0E6] text-[#EA580C] dark:bg-orange-500/20 dark:text-orange-300" aria-hidden>
                   <PlayCircle className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[14px] font-extrabold text-[#1C1917] dark:text-white">
-                    {t("employee.homeDash.continue.title")}
+                  <div className="flex items-center gap-2 text-[14px] font-extrabold text-[#1C1917] dark:text-white">
+                    <span>{t("employee.homeDash.continue.title")}</span>
                   </div>
-                  <div className="mt-1 line-clamp-1 text-[13px] font-semibold text-[#111827] dark:text-white">
+                  <div
+                    className={`mt-2 text-[32px] font-extrabold tabular-nums leading-none text-[#1C1917] dark:text-white${isArabic ? " text-end" : ""}`}
+                    dir="ltr"
+                  >
+                    {Math.round(ccPct)}%
+                  </div>
+                  <div className="mt-2 text-[13px] font-semibold leading-snug text-[#1C1917]/60 dark:text-white/60">
                     {cc.title}
-                  </div>
-                  <div className="mt-2 text-[13px] font-semibold text-[#1C1917]/60 dark:text-white/60">
-                    {t("employee.homeDash.continue.hint")}
                   </div>
                 </div>
               </div>
-              <Pill tone="accent" className="shrink-0" dir="ltr">
-                {Math.round(ccPct)}%
+              <Pill tone="accent" className="shrink-0" title={t("employee.homeDash.formations.pill")}>
+                {t("employee.homeDash.formations.pill")} ↗
               </Pill>
             </div>
 
             <div className="mt-auto pt-4">
               <div className="h-[8px] w-full overflow-hidden rounded-full bg-[#E7E5E4] dark:bg-[#44403C]">
                 <div
-                  className="h-full w-full rounded-full bg-indigo-600"
+                  className="h-full w-full rounded-full"
                   style={{
                     transformOrigin: isArabic ? "right" : "left",
                     transform: `scaleX(${ccPct / 100})`,
+                    background: "#FB923C",
                   }}
                 />
               </div>

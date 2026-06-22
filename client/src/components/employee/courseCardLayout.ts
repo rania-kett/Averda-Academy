@@ -15,8 +15,8 @@ export const courseCardGridMdStyle: CSSProperties = {
 export const courseCardWrapperStyle: CSSProperties = {
   borderRadius: "16px",
   overflow: "hidden",
-  background: "white",
-  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+  background: "var(--employee-card)",
+  border: "1px solid var(--employee-border)",
   display: "flex",
   flexDirection: "column",
   width: "100%",
@@ -52,20 +52,19 @@ export const courseCardContentStyle: CSSProperties = {
 export const courseCardTitleStyle: CSSProperties = {
   fontSize: "14px",
   fontWeight: 600,
-  textAlign: "right",
   lineHeight: 1.4,
   display: "-webkit-box",
   WebkitLineClamp: 1,
   WebkitBoxOrient: "vertical",
   overflow: "hidden",
   margin: 0,
-  color: "#1C1917",
+  color: "var(--employee-fg)",
 };
 
 export const courseCardMetaRowStyle: CSSProperties = {
   minHeight: "18px",
   fontSize: "12px",
-  color: "#9ca3af",
+  color: "var(--employee-muted)",
   display: "flex",
   alignItems: "center",
   gap: "6px",

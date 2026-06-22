@@ -46,6 +46,10 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Playwright
+test-results/
+playwright-report/
+
 # Local assets / backups (do not commit)
 pictures/
 pictures.zip

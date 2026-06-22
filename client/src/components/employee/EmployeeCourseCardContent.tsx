@@ -115,17 +115,20 @@ export function EmployeeCourseCardContent({
       </div>
       <div className="card-content" style={courseCardContentStyle}>
         <div className="min-h-0">
-          <h3 className="card-title" style={courseCardTitleStyle}>
+          <h3
+            className="card-title"
+            style={{
+              ...courseCardTitleStyle,
+              textAlign: lang === "ar" ? "right" : "left",
+            }}
+          >
             {title}
           </h3>
           {description ? (
             <p
-              className="card-description"
+              className="card-description text-[11px] leading-[1.4] text-[#9ca3af] dark:text-stone-400"
               style={{
-                fontSize: "11px",
-                color: "#9ca3af",
                 margin: "2px 0 4px 0",
-                lineHeight: "1.4",
                 display: "-webkit-box",
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: "vertical",
@@ -140,7 +143,6 @@ export function EmployeeCourseCardContent({
           <CourseCardMeta
             titleAr={titleAr}
             courseId={courseId}
-            lang={lang}
             showLastRead={showLastRead}
           />
           {requiredHsseq ? (
@@ -155,17 +157,17 @@ export function EmployeeCourseCardContent({
               className={[
                 "card-badge inline-flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-[12px] font-bold",
                 status === "completed"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300"
                   : status === "in_progress"
-                    ? "border-amber-200 bg-amber-50 text-amber-800"
-                    : "border-black/10 bg-black/5 text-[#57534E]",
+                    ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300"
+                    : "border-black/10 bg-black/5 text-[#57534E] dark:border-white/10 dark:bg-white/5 dark:text-stone-300",
               ].join(" ")}
             >
               {mainStatusBadgeText}
             </span>
             <span
               className={[
-                "quiz-score-badge card-badge inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-800",
+                "quiz-score-badge card-badge inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300",
                 showSeparateQuizScore ? "" : "hidden",
               ].join(" ")}
               aria-hidden={!showSeparateQuizScore}
