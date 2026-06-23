@@ -15,6 +15,7 @@ import {
 import { isCategoryWithoutCoursesYet } from "../utils/adminCourseVisibility.js";
 import { NEW_BADGES, NEW_BADGE_KEYS } from "../services/badgeCatalog.js";
 import { evaluateBadgesAfterLessonComplete } from "../services/badgeService.js";
+import { issueEmployeeCertificate, sendCertificatePdf, buildCertificateDownloadName } from "../services/certificateService.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -296,6 +297,18 @@ router.get("/badges", async (req, res, next) => {
         earned: earnedSet.has(b.id),
       })),
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/certificate", async (req, res, next) => {
+  try {
+    const { userId, role } = (req as AuthedRequest).user;
+    if (role !== "EMPLOYEE") throw new AppError(403, "Employees only");
+    const pdfUrl = await issueEmployeeCertificate(userId);
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    sendCertificatePdf(res, pdfUrl, buildCertificateDownloadName(user?.name ?? "employee"));
   } catch (e) {
     next(e);
   }

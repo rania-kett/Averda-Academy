@@ -163,7 +163,7 @@ export function ProfileDashboardCards({
         {/* 2) Moyenne aux quiz */}
         <Card className="h-full">
           <div className="flex items-start gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-100 text-[#1a3a6e] dark:bg-[#1a3a6e]/20 dark:text-white" aria-hidden>
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" aria-hidden>
               <BarChart3 className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">

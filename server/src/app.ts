@@ -165,7 +165,12 @@ app.use(
   })
 );
 app.use(express.json({ limit: "10mb" }));
-app.use("/api/epi", epiRouter); 
+app.use("/api/epi", epiRouter);
+app.use("/uploads/certificates", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  next();
+});
 app.use("/uploads", express.static(uploadDir));
 // Backward compatibility: some courses stored PDFs as `/uploads/<name>.pdf`.
 // If the file is no longer in the API uploads folder but exists under the Vite public

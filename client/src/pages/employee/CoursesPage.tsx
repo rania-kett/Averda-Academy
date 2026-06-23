@@ -11,6 +11,7 @@ import { getCourseCardStatus } from "@/utils/courseCardStatus";
 import { isHsseqIntroFromCourse } from "@/utils/courseVisibility";
 import { courseCardCellClassName } from "@/components/employee/CourseCardGrid";
 import { CertificateButton } from "@/components/employee/CertificateButton";
+import { resolveCertificateLocale } from "@/utils/certificateTemplate";
 import "./courseCardsMobile.css";
 
 type CourseRow = {
@@ -31,12 +32,18 @@ type CourseRow = {
 };
 
 export function CoursesPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language.startsWith("ar") ? "ar" : i18n.language.startsWith("fr") ? "fr" : "en";
   const nav = useNavigate();
   const [list, setList] = useState<CourseRow[]>([]);
   const [assessmentDone, setAssessmentDone] = useState(false);
   const [hsseqRequired, setHsseqRequired] = useState(true);
-  const [meInfo, setMeInfo] = useState<{ name: string; role: string; avgScore: number } | null>(null);
+  const [meInfo, setMeInfo] = useState<{
+    name: string;
+    role: string;
+    avgScore: number;
+    locale: ReturnType<typeof resolveCertificateLocale>;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"all" | "not_started" | "in_progress" | "completed">("all");
   const [lastReadTick, setLastReadTick] = useState(0);
@@ -50,6 +57,7 @@ export function CoursesPage() {
         const m = me.data as {
           user?: {
             name?: string;
+            language?: "AR" | "FR" | "EN";
             category?: { name?: { ar?: string; fr?: string; en?: string } } | null;
             assessmentCompleted?: boolean;
             hsseqCourseRequired?: boolean;
@@ -61,8 +69,9 @@ export function CoursesPage() {
         setHsseqRequired(m.user?.hsseqCourseRequired !== false);
         setMeInfo({
           name: m.user?.name ?? "—",
-          role: m.user?.category?.name?.ar ?? "—",
+          role: m.user?.category?.name?.[lang] ?? m.user?.category?.name?.ar ?? "—",
           avgScore: Number(m.progress?.avgQuizScore ?? 0),
+          locale: resolveCertificateLocale(m.user?.language ?? lang),
         });
         let courses = (cr.data as { courses: CourseRow[] }).courses;
         const score = m.user?.assessmentScore ?? 0;
@@ -196,7 +205,12 @@ export function CoursesPage() {
             <CertificateButton
               allCoursesCompleted={completionStats.allDone}
               avgScore={meInfo.avgScore}
-              employee={{ name: meInfo.name, role: meInfo.role, completionDate: new Date().toISOString() }}
+              employee={{
+                name: meInfo.name,
+                role: meInfo.role,
+                completionDate: new Date().toISOString(),
+                locale: meInfo.locale,
+              }}
             />
           </div>
         )}

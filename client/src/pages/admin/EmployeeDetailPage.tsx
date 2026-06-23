@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { adminApi } from "@/api/api";
+import { generateCertificate } from "@/utils/generateCertificate";
+import { resolveCertificateLocale } from "@/utils/certificateTemplate";
 import { useToast } from "@/context/ToastContext";
 import { AdminBackButton } from "@/components/admin/AdminBackButton";
 import { RoleAvatar, roleAvatarKindFromCategoryCode } from "@/components/employee/ui/RoleAvatar";
@@ -109,10 +111,33 @@ export function EmployeeDetailPage() {
   }, [emp, courses]);
 
   const downloadCert = async () => {
-    if (!id || !certificateEligible) return;
+    if (!emp || !certificateEligible) return;
     try {
-      const { data } = await adminApi.certificate(id);
-      window.open((data as { url: string }).url, "_blank");
+      const scores = [
+        ...(emp.attempts ?? []).map((a) => a.score),
+        ...(emp.lessonQuizAttempts ?? []).map((a) => a.percentage),
+      ];
+      const avgScore =
+        scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+      const empLang = resolveCertificateLocale(emp.language);
+      const roleName =
+        (emp.category?.name as Record<string, string> | undefined)?.[empLang] ??
+        emp.category?.code ??
+        "employee";
+      const programTitle =
+        (emp.progress[0]?.course?.title as Record<string, string> | undefined)?.[empLang] ??
+        (emp.progress[0]?.course?.title as Record<string, string> | undefined)?.en ??
+        "";
+      const doc = await generateCertificate({
+        name: emp.name,
+        role: roleName,
+        programName: programTitle,
+        avgScore,
+        completionDate: new Date().toISOString(),
+        locale: empLang,
+      });
+      const fileName = `certificate-${emp.name.replace(/[\\/:*?"<>|]/g, "-")}-averda.pdf`;
+      doc.save(fileName);
       toast(t("common.saved"), "success");
     } catch {
       toast(t("common.error"), "error");

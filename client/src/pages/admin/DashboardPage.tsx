@@ -24,7 +24,7 @@ import { AlertCircle, BarChart2, BookOpen, Briefcase, HardHat, Home, Pencil, Ref
 import { COLORS, SIDEBAR } from "@/components/admin/adminThemeTokens";
 import { LanguageSwitcherCompact } from "@/components/LanguageSwitcherCompact";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { useDashboardI18n, epiDisplayStatusLabel, epiStatusLabel, employeeStatusLabel, courseTitleForLang } from "@/pages/admin/dashboardI18n";
+import { useDashboardI18n, epiDisplayStatusLabel, epiStatusLabel, employeeStatusLabel, courseTitleForLang, categoryLabel, type CategoryLang } from "@/pages/admin/dashboardI18n";
 import { CATEGORY_ORDER, CATEGORIES, categoryKeyFromCode, type CategoryKey } from "@/config/categories";
 import { adminApi } from "@/api/api";
 import client from "@/api/client";
@@ -51,6 +51,8 @@ import { getExpiryLabel } from "@/utils/epiExpiry";
 import { getDisplayStatus, getEmployeeEpiPillFlags, getStatusLabel } from "@/utils/epiStatus";
 import type { DashboardEpiEmployee, DashboardEpiItem } from "@/utils/mapEpiSummaryToDashboard";
 import { SettingsView } from "@/pages/admin/SettingsPage";
+import { Certificate } from "@/components/employee/Certificate";
+import { resolveCertificateLocale } from "@/utils/certificateTemplate";
 import "@/pages/employee/courseCardsMobile.css";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
@@ -81,6 +83,15 @@ interface Employee {
   assessmentScore?: number | null;
   assessmentTakenAt?: string | null;
   isActive?: boolean;
+  language?: "AR" | "FR" | "EN";
+}
+
+function employeeHasCertificate(emp: Employee): boolean {
+  return (
+    emp.totalCourses > 0 &&
+    emp.completedCourses >= emp.totalCourses &&
+    emp.avgScore >= 70
+  );
 }
 
 type EpiEmployee = DashboardEpiEmployee;
@@ -300,6 +311,7 @@ type ApiAdminEmployeeRow = {
   assessmentScore?: number | null;
   assessmentTakenAt?: string | null;
   isActive?: boolean;
+  language?: "AR" | "FR" | "EN";
 };
 
 /** Map GET /api/admin/employees → dashboard Employee rows. */
@@ -328,6 +340,7 @@ function mapApiEmployeesToDashboard(raw: unknown): Employee[] {
       assessmentScore: u.assessmentScore ?? null,
       assessmentTakenAt: u.assessmentTakenAt ?? null,
       isActive: u.isActive ?? true,
+      language: u.language,
     };
   });
 }
@@ -1372,7 +1385,7 @@ const EmployeesView = ({ employees, onSelect }: { employees: Employee[]; onSelec
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text }}>{nameOf(emp.name)}</div>
-                          {emp.totalCourses > 0 && emp.completedCourses >= emp.totalCourses && emp.avgScore >= 70 && (
+                          {employeeHasCertificate(emp) && (
                             <span
                               title={t("admin.page.employees.hasCertificate")}
                               style={{
@@ -2503,9 +2516,15 @@ const AddEmployeeModal = ({
 const EmployeeDetailModal = ({ employee, onClose }: { employee: Employee; onClose: () => void }) => {
   const { t, locale, nameOf, roleOf } = useDashboardI18n();
   const role = getRoleConfig(employee.role);
+  const hasCertificate = employeeHasCertificate(employee);
+  const certLocale = resolveCertificateLocale(employee.language);
+  const certRole = employee.categoryKey
+    ? categoryLabel(employee.categoryKey, certLocale as CategoryLang)
+    : employee.role;
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
-      <div style={{ background: COLORS.white, borderRadius: 20, width: "100%", maxWidth: 520, maxHeight: "85vh", overflow: "auto", boxShadow: COLORS.shadowLg }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: COLORS.white, borderRadius: 20, width: "100%", maxWidth: 520, maxHeight: "90vh", overflow: "auto", boxShadow: COLORS.shadowLg }} onClick={e => e.stopPropagation()}>
         <div style={{ background: COLORS.navy, padding: "24px 24px 20px", borderRadius: "20px 20px 0 0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
@@ -2541,6 +2560,29 @@ const EmployeeDetailModal = ({ employee, onClose }: { employee: Employee; onClos
             <ProgressBar value={employee.completedCourses} max={employee.totalCourses || 1} />
           </div>
           <div style={{ fontSize: 13, color: COLORS.textMuted }}>{t("admin.page.employees.lastActivity", { date: new Date(employee.lastActivity).toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" }) })}</div>
+
+          {hasCertificate && (
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px solid ${COLORS.border}` }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 22, lineHeight: 1.2 }}>🏆</span>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: COLORS.text, lineHeight: 1.55 }}>
+                  {t("admin.page.employees.certificateBlurb")}
+                </p>
+              </div>
+              <Certificate
+                employeeName={employee.name}
+                role={certRole}
+                score={employee.avgScore}
+                date={employee.lastActivity}
+                locale={certLocale}
+                showPreview={false}
+                showExport
+                showExportIcon={false}
+                downloadApi="admin"
+                userId={employee.id}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

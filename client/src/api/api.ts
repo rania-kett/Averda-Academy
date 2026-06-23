@@ -19,6 +19,8 @@ export const userApi = {
   readNotification: (id: string) =>
     client.put(`/api/user/notifications/${id}/read`),
   readAllNotifications: () => client.put("/api/user/notifications/read-all"),
+  certificate: () =>
+    client.get("/api/user/certificate", { responseType: "blob", timeout: 120_000 }),
 };
 
 export const coursesApi = {
@@ -165,7 +167,10 @@ export const adminApi = {
   resetProgress: (id: string) =>
     client.post(`/api/admin/employees/${id}/reset-progress`),
   certificate: (id: string) =>
-    client.get(`/api/admin/employees/${id}/certificate`),
+    client.get(`/api/admin/employees/${id}/certificate`, {
+      responseType: "blob",
+      timeout: 120_000,
+    }),
   epiOverview: (params?: Record<string, string>) =>
     client.get("/api/admin/epi/overview", { params }),
   epiDemoSeed: () => client.post("/api/admin/epi/demo-seed"),

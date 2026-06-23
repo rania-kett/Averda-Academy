@@ -14,6 +14,7 @@ import { buildEpiProgress } from "@/utils/epiProgress";
 import { FOCUS_EPI_EVENT, type FocusEpiLocationState } from "@/utils/employeeEpiFocus";
 import { CertificateButton } from "@/components/employee/CertificateButton";
 import { displayEmployeeName } from "@/utils/displayEmployeeName";
+import { resolveCertificateLocale } from "@/utils/certificateTemplate";
 
 type MePayload = {
   user: {
@@ -289,6 +290,7 @@ export function ProfilePage() {
               name: employeeDisplayName,
               role: categoryMeta?.label[lang as "ar" | "fr" | "en"] ?? "—",
               completionDate: new Date().toISOString(),
+              locale: resolveCertificateLocale(language),
             }}
           />
         </div>

@@ -1,9 +1,16 @@
 import { Certificate } from "@/components/employee/Certificate";
+import type { CertificateLocale } from "@/utils/certificateTemplate";
 
 type Props = {
   allCoursesCompleted: boolean;
   avgScore: number;
-  employee: { name: string; role: string; programName?: string; completionDate: string };
+  employee: {
+    name: string;
+    role: string;
+    programName?: string;
+    completionDate: string;
+    locale?: CertificateLocale;
+  };
 };
 
 export function CertificateButton({ allCoursesCompleted, avgScore, employee }: Props) {
@@ -16,6 +23,7 @@ export function CertificateButton({ allCoursesCompleted, avgScore, employee }: P
       programName={employee.programName}
       score={avgScore}
       date={employee.completionDate}
+      locale={employee.locale}
       showPreview={false}
       showExport
     />

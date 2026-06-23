@@ -8,25 +8,30 @@ import {
   CERTIFICATE_STYLE_ELEMENT_ID,
   CERT_HEIGHT_PX,
   CERT_WIDTH_PX,
+  getCertificateCopyForRaster,
   injectCertificateStyles,
+  resolveCertificateLocale,
+  type CertificateLocale,
   type CertificateTemplateData,
 } from "@/utils/certificateTemplate";
+import { rasterizeArabicCertificate } from "@/utils/certificateTextRaster";
 
 export type EmployeeCertificateInput = {
   name: string;
   role: string;
   programName?: string;
   avgScore: number;
-  completionDate: string; // ISO string
+  completionDate: string;
   certificateId?: string;
+  locale?: CertificateLocale;
 };
 
 const FONT_HREF =
-  "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;600;700&display=swap";
+  "https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Great+Vibes&family=Inter:wght@400;700;800&family=Noto+Sans+Arabic:wght@400;600;700&family=Playfair+Display:wght@400&display=swap";
 
-const NOTO_FONT_LINK_ID = "averda-certificate-noto-fonts";
+const FONT_LINK_ID = "averda-certificate-fonts";
 
-async function imageUrlToDataUrl(url: string, whiteSilhouette = false): Promise<string | null> {
+async function imageUrlToDataUrl(url: string): Promise<string | null> {
   try {
     const res = await fetch(url);
     const blob = await res.blob();
@@ -37,11 +42,6 @@ async function imageUrlToDataUrl(url: string, whiteSilhouette = false): Promise<
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
     ctx.drawImage(bmp, 0, 0);
-    if (whiteSilhouette) {
-      ctx.globalCompositeOperation = "source-in";
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
     return canvas.toDataURL("image/png");
   } catch {
     return null;
@@ -54,54 +54,52 @@ async function waitForImages(root: HTMLElement): Promise<void> {
     imgs.map(
       (img) =>
         new Promise<void>((resolve) => {
+          const done = () => resolve();
           if (img.complete && img.naturalWidth > 0) {
-            resolve();
+            done();
             return;
           }
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
+          img.onload = done;
+          img.onerror = done;
+          if (img.decode) void img.decode().then(done).catch(done);
         })
     )
   );
 }
 
 async function ensureCertificateFonts(): Promise<void> {
-  if (!document.getElementById(NOTO_FONT_LINK_ID)) {
+  if (!document.getElementById(FONT_LINK_ID)) {
     const link = document.createElement("link");
-    link.id = NOTO_FONT_LINK_ID;
+    link.id = FONT_LINK_ID;
     link.rel = "stylesheet";
     link.href = FONT_HREF;
     document.head.appendChild(link);
     await new Promise<void>((resolve) => {
       link.onload = () => resolve();
       link.onerror = () => resolve();
-      setTimeout(resolve, 3000);
+      setTimeout(resolve, 3500);
     });
   }
-
   const fonts = document.fonts;
   if (!fonts?.load) return;
   await Promise.all([
-    fonts.load('700 40px "Noto Naskh Arabic"'),
-    fonts.load('400 34px "Noto Naskh Arabic"'),
-    fonts.load('600 16px "Noto Naskh Arabic"'),
-    fonts.load('700 36px "Inter"'),
-    fonts.load('500 14px "Inter"'),
-    fonts.load('700 11px "Courier New"'),
+    fonts.load('700 100px "Amiri"'),
+    fonts.load('700 48px "Amiri"'),
+    fonts.load('400 14px "Noto Sans Arabic"'),
+    fonts.load('600 15px "Noto Sans Arabic"'),
+    fonts.load('400 50px "Great Vibes"'),
+    fonts.load('400 13px "Playfair Display"'),
+    fonts.load('800 100px "Inter"'),
   ]).catch(() => undefined);
   if (fonts.ready) await fonts.ready;
-  await new Promise((r) => setTimeout(r, 350));
+  await new Promise((r) => setTimeout(r, 800));
 }
 
 function forceLightModeOnClone(clonedDoc: Document): void {
-  const html = clonedDoc.documentElement;
-  const body = clonedDoc.body;
-  html.classList.remove("dark");
-  html.style.colorScheme = "light";
-  html.style.background = "#FDFAF3";
-  body.style.colorScheme = "light";
-  body.style.background = "#FDFAF3";
-  body.style.color = "#003366";
+  clonedDoc.documentElement.classList.remove("dark");
+  clonedDoc.documentElement.style.background = "#ffffff";
+  clonedDoc.body.style.background = "#ffffff";
+  clonedDoc.body.style.color = "#111111";
 
   if (!clonedDoc.getElementById(CERTIFICATE_STYLE_ELEMENT_ID)) {
     const style = clonedDoc.createElement("style");
@@ -109,10 +107,9 @@ function forceLightModeOnClone(clonedDoc: Document): void {
     style.textContent = CERTIFICATE_CSS;
     clonedDoc.head.appendChild(style);
   }
-
-  if (!clonedDoc.getElementById(NOTO_FONT_LINK_ID)) {
+  if (!clonedDoc.getElementById(FONT_LINK_ID)) {
     const link = clonedDoc.createElement("link");
-    link.id = NOTO_FONT_LINK_ID;
+    link.id = FONT_LINK_ID;
     link.rel = "stylesheet";
     link.href = FONT_HREF;
     clonedDoc.head.appendChild(link);
@@ -124,17 +121,13 @@ function mountCertificateElement(html: string): { host: HTMLDivElement; root: HT
   host.setAttribute("data-certificate-export", "true");
   host.style.cssText = [
     "position:fixed",
-    "left:0",
+    "left:-9999px",
     "top:0",
     `width:${CERT_WIDTH_PX}px`,
     `height:${CERT_HEIGHT_PX}px`,
-    "max-width:" + CERT_WIDTH_PX + "px",
-    "max-height:" + CERT_HEIGHT_PX + "px",
-    "overflow:hidden",
-    "color-scheme:light",
-    "background:#FDFAF3",
-    "z-index:2147483646",
-    "pointer-events:none",
+    "overflow:visible",
+    "background:#ffffff",
+    "z-index:-1",
   ].join(";");
 
   host.innerHTML = html;
@@ -145,89 +138,75 @@ function mountCertificateElement(html: string): { host: HTMLDivElement; root: HT
     host.remove();
     throw new Error("Certificate template failed to mount");
   }
-
-  root.style.colorScheme = "light";
-  root.style.background = "#FDFAF3";
-
   return { host, root };
 }
 
-async function captureWithHtml2Canvas(root: HTMLElement): Promise<HTMLCanvasElement> {
+async function captureCertificate(root: HTMLElement): Promise<HTMLCanvasElement> {
   return html2canvas(root, {
-    backgroundColor: "#FDFAF3",
-    scale: 2,
+    backgroundColor: "#ffffff",
+    scale: 2.5,
     width: CERT_WIDTH_PX,
     height: CERT_HEIGHT_PX,
     useCORS: true,
     allowTaint: true,
     logging: false,
-    scrollX: 0,
-    scrollY: 0,
-    imageTimeout: 20000,
-    windowWidth: CERT_WIDTH_PX,
-    windowHeight: CERT_HEIGHT_PX,
     onclone: forceLightModeOnClone,
   });
 }
 
-function ensureSingleLandscapePage(doc: jsPDF): jsPDF {
-  const total = doc.getNumberOfPages();
-  for (let p = total; p > 1; p--) {
-    doc.deletePage(p);
+async function buildTemplateData(
+  employee: EmployeeCertificateInput,
+  watermarkDataUrl: string | null
+): Promise<CertificateTemplateData> {
+  const locale = resolveCertificateLocale(employee.locale);
+  const issueDate = new Date().toISOString();
+  const base: CertificateTemplateData = {
+    name: employee.name,
+    role: employee.role,
+    programName: employee.programName,
+    avgScore: employee.avgScore,
+    completionDate: employee.completionDate,
+    issueDate,
+    watermarkDataUrl,
+    certificateId: employee.certificateId ?? buildCertificateId(employee.name, issueDate),
+    locale,
+  };
+  if (locale === "ar") {
+    base.raster = await rasterizeArabicCertificate(getCertificateCopyForRaster(base));
   }
-  doc.setPage(1);
-  return doc;
-}
-
-function addCanvasToPdf(doc: jsPDF, canvas: HTMLCanvasElement): jsPDF {
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-
-  if (canvas.width < 100 || canvas.height < 100) {
-    throw new Error("Certificate capture produced an empty image");
-  }
-
-  try {
-    doc.addImage(canvas, "PNG", 0, 0, pageW, pageH, undefined, "FAST");
-  } catch {
-    const imgData = canvas.toDataURL("image/png");
-    doc.addImage(imgData, "PNG", 0, 0, pageW, pageH, undefined, "FAST");
-  }
-
-  return ensureSingleLandscapePage(doc);
+  return base;
 }
 
 export async function generateCertificate(employee: EmployeeCertificateInput): Promise<jsPDF> {
   injectCertificateStyles();
   await ensureCertificateFonts();
 
-  const watermarkDataUrl = await imageUrlToDataUrl(AverdaLogoUrl, true);
-  const templateData: CertificateTemplateData = {
-    name: employee.name,
-    role: employee.role,
-    programName: employee.programName,
-    avgScore: employee.avgScore,
-    completionDate: employee.completionDate,
-    watermarkDataUrl,
-    certificateId: employee.certificateId ?? buildCertificateId(employee.name, employee.completionDate),
-  };
-
+  const watermarkDataUrl = await imageUrlToDataUrl(AverdaLogoUrl);
+  const templateData = await buildTemplateData(employee, watermarkDataUrl);
   const html = buildCertificateHtml(templateData);
   const { host, root } = mountCertificateElement(html);
 
   try {
     await waitForImages(root);
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise((r) => setTimeout(r, 400));
 
-    const canvas = await captureWithHtml2Canvas(root);
-    const doc = new jsPDF({
-      orientation: "landscape",
-      unit: "pt",
-      format: "a4",
-      compress: true,
-    });
-    return addCanvasToPdf(doc, canvas);
+    const canvas = await captureCertificate(root);
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4", compress: true });
+
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const img = canvas.toDataURL("image/png");
+    doc.addImage(img, "PNG", 0, 0, pageW, pageH, undefined, "FAST");
+    return doc;
   } finally {
     host.remove();
   }
+}
+
+export async function buildCertificatePreviewHtml(employee: EmployeeCertificateInput): Promise<string> {
+  injectCertificateStyles();
+  await ensureCertificateFonts();
+  const watermarkDataUrl = await imageUrlToDataUrl(AverdaLogoUrl);
+  const templateData = await buildTemplateData(employee, watermarkDataUrl);
+  return buildCertificateHtml(templateData);
 }

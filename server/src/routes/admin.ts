@@ -19,7 +19,7 @@ import {
   computeEmployeeCourseMetrics,
   visibleCoursesForEmployee,
 } from "../utils/employeeCourseProgress.js";
-import { generateTrainingCertificate } from "../services/certificateService.js";
+import { issueEmployeeCertificate, sendCertificatePdf, buildCertificateDownloadName } from "../services/certificateService.js";
 import { parseQuizQuestions } from "../services/badgeService.js";
 import type { QuizQuestionJson } from "../services/claudeQuiz.js";
 import {
@@ -745,36 +745,9 @@ router.get(
   async (req, res, next) => {
     try {
       const uid = req.params!.id!;
-      const user = await prisma.user.findUnique({
-        where: { id: uid, role: "EMPLOYEE" },
-      });
-      if (!user) throw new AppError(404, "Employee not found");
-      if (!user.categoryId) throw new AppError(400, "Employee category not set");
-      const assigned = await prisma.course.findMany({
-        where: { isActive: true, categories: { some: { categoryId: user.categoryId } } },
-      });
-      const titles: string[] = [];
-      for (const c of assigned) {
-        const quiz = await prisma.quiz.findUnique({ where: { courseId: c.id } });
-        if (!quiz) throw new AppError(400, "Not all courses have quizzes");
-        const pass = await prisma.quizAttempt.findFirst({
-          where: { userId: uid, quizId: quiz.id, passed: true },
-        });
-        if (!pass) throw new AppError(400, "Employee has not passed all assigned courses");
-        const t = c.title as { ar?: string; en?: string };
-        titles.push(t.en || t.ar || c.slug);
-      }
-      const ud = uploadDir();
-      const pdfUrl = await generateTrainingCertificate({
-        userId: uid,
-        employeeName: user.name,
-        courseTitles: titles,
-        uploadDir: ud,
-      });
-      await prisma.certificate.create({
-        data: { userId: uid, pdfUrl },
-      });
-      res.json({ url: pdfUrl });
+      const pdfUrl = await issueEmployeeCertificate(uid);
+      const user = await prisma.user.findUnique({ where: { id: uid }, select: { name: true } });
+      sendCertificatePdf(res, pdfUrl, buildCertificateDownloadName(user?.name ?? "employee"));
     } catch (e) {
       next(e);
     }
