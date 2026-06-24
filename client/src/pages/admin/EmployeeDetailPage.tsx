@@ -1,10 +1,8 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { adminApi } from "@/api/api";
-import { generateCertificate } from "@/utils/generateCertificate";
-import { resolveCertificateLocale } from "@/utils/certificateTemplate";
 import { useToast } from "@/context/ToastContext";
 import { AdminBackButton } from "@/components/admin/AdminBackButton";
 import { RoleAvatar, roleAvatarKindFromCategoryCode } from "@/components/employee/ui/RoleAvatar";
@@ -45,6 +43,7 @@ type AdminCourse = {
 
 export function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const toast = useToast();
   const [emp, setEmp] = useState<Emp | null>(null);
@@ -111,33 +110,19 @@ export function EmployeeDetailPage() {
   }, [emp, courses]);
 
   const downloadCert = async () => {
-    if (!emp || !certificateEligible) return;
+    if (!emp || !certificateEligible || !id) return;
     try {
-      const scores = [
-        ...(emp.attempts ?? []).map((a) => a.score),
-        ...(emp.lessonQuizAttempts ?? []).map((a) => a.percentage),
-      ];
-      const avgScore =
-        scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-      const empLang = resolveCertificateLocale(emp.language);
-      const roleName =
-        (emp.category?.name as Record<string, string> | undefined)?.[empLang] ??
-        emp.category?.code ??
-        "employee";
-      const programTitle =
-        (emp.progress[0]?.course?.title as Record<string, string> | undefined)?.[empLang] ??
-        (emp.progress[0]?.course?.title as Record<string, string> | undefined)?.en ??
-        "";
-      const doc = await generateCertificate({
-        name: emp.name,
-        role: roleName,
-        programName: programTitle,
-        avgScore,
-        completionDate: new Date().toISOString(),
-        locale: empLang,
-      });
-      const fileName = `certificate-${emp.name.replace(/[\\/:*?"<>|]/g, "-")}-averda.pdf`;
-      doc.save(fileName);
+      const { data } = await adminApi.certificate(id);
+      const fileName = `certificate-${emp.name.replace(/[\\/:*?"<>|]/g, "-").trim()}-averda.pdf`;
+      const url = URL.createObjectURL(data as Blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast(t("common.saved"), "success");
     } catch {
       toast(t("common.error"), "error");
@@ -153,6 +138,17 @@ export function EmployeeDetailPage() {
       setEmp((data as { employee: Emp }).employee);
     } catch {
       toast(t("common.error"), "error");
+    }
+  };
+
+  const removeEmployee = async () => {
+    if (!id || !confirm(t("admin.employees.deleteConfirm"))) return;
+    try {
+      await adminApi.deleteEmployee(id);
+      toast(t("admin.epiManage.employeeDeleted"), "success");
+      navigate("/admin/employees");
+    } catch {
+      toast(t("admin.epiManage.employeeDeleteFailed"), "error");
     }
   };
 
@@ -205,6 +201,13 @@ export function EmployeeDetailPage() {
           className="rounded-lg border border-red-500/50 px-4 py-3 text-red-400"
         >
           {t("admin.employees.reset")}
+        </button>
+        <button
+          type="button"
+          onClick={() => void removeEmployee()}
+          className="rounded-lg border border-red-600 bg-red-600/10 px-4 py-3 font-semibold text-red-500 transition hover:bg-red-600/20"
+        >
+          {t("admin.employees.delete")}
         </button>
       </div>
 

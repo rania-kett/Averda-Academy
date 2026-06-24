@@ -14,7 +14,8 @@ import {
 } from "../utils/employeeCourseProgress.js";
 import { isCategoryWithoutCoursesYet } from "../utils/adminCourseVisibility.js";
 import { NEW_BADGES, NEW_BADGE_KEYS } from "../services/badgeCatalog.js";
-import { evaluateBadgesAfterLessonComplete } from "../services/badgeService.js";
+import { evaluateAllBadgesForUser } from "../services/badgeService.js";
+import { filterVisibleEmployeeNotifications } from "../utils/employeeNotificationFilters.js";
 import { issueEmployeeCertificate, sendCertificatePdf, buildCertificateDownloadName } from "../services/certificateService.js";
 
 const router = Router();
@@ -49,12 +50,15 @@ router.get("/me", async (req, res, next) => {
     }
 
     // Ensure canonical badge catalog exists and compute any missing automatic badges (idempotent).
+    let earnedBadges = user.badges ?? [];
     try {
-      await evaluateBadgesAfterLessonComplete({
-        userId,
-        courseId: "",
-        timeSpentSecs: 0,
-        completionPct: 0,
+      await evaluateAllBadgesForUser(userId);
+      earnedBadges = await prisma.userBadge.findMany({
+        where: {
+          userId,
+          badge: { key: { in: Object.values(NEW_BADGE_KEYS) } },
+        },
+        include: { badge: true },
       });
     } catch {
       /* ignore badge eval errors */
@@ -118,9 +122,7 @@ router.get("/me", async (req, res, next) => {
         category: user.category,
         language: user.language,
         avatarColor: user.avatarColor,
-        badges: (user.badges ?? []).filter((ub) =>
-          Object.values(NEW_BADGE_KEYS).includes(ub.badge.key as any)
-        ),
+        badges: earnedBadges,
         certificates: user.certificates,
         assessmentCompleted: user.assessmentCompleted,
         assessmentScore: user.assessmentScore,
@@ -224,9 +226,9 @@ router.get("/notifications", async (req, res, next) => {
     const rows = await prisma.notification.findMany({
       where: { userId },
       orderBy: [{ isRead: "asc" }, { createdAt: "desc" }],
-      take: 50,
+      take: 100,
     });
-    res.json({ notifications: rows });
+    res.json({ notifications: filterVisibleEmployeeNotifications(rows).slice(0, 50) });
   } catch (e) {
     next(e);
   }
@@ -274,12 +276,7 @@ router.get("/badges", async (req, res, next) => {
     const { userId } = (req as AuthedRequest).user;
     // Ensure automatic badges are up-to-date before returning the list.
     try {
-      await evaluateBadgesAfterLessonComplete({
-        userId,
-        courseId: "",
-        timeSpentSecs: 0,
-        completionPct: 0,
-      });
+      await evaluateAllBadgesForUser(userId);
     } catch {
       /* ignore */
     }

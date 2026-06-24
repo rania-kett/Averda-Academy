@@ -955,6 +955,8 @@
       "certTooltip": "Réussir toutes les formations du groupe (score quiz ≥ 70 %)",
       "reset": "Réinitialiser la progression",
       "resetConfirm": "Toute la progression sera supprimée.",
+      "delete": "Supprimer l'employé",
+      "deleteConfirm": "Supprimer définitivement cet employé et toutes ses données ? Cette action est irréversible.",
       "joinDate": "Date d'entrée",
       "langPref": "Langue",
       "courseQuiz": "Quiz de formation",
@@ -1157,7 +1159,17 @@
       "saved": "Paramètres enregistrés",
       "loadFailed": "Impossible de charger la gestion EPI",
       "saveFailed": "Impossible d'enregistrer les paramètres",
-      "issueFailed": "Impossible d'attribuer les équipements"
+      "issueFailed": "Impossible d'attribuer les équipements",
+      "editIssuance": "Modifier",
+      "deleteIssuance": "Supprimer l'attribution",
+      "deleteIssuanceConfirm": "Supprimer cette attribution EPI ? Cette action est irréversible.",
+      "saveIssuance": "Enregistrer",
+      "issuanceSaved": "Attribution EPI mise à jour",
+      "issuanceDeleted": "Attribution EPI supprimée",
+      "issuanceSaveFailed": "Impossible de mettre à jour l'attribution",
+      "issuanceDeleteFailed": "Impossible de supprimer l'attribution",
+      "employeeDeleted": "Employé supprimé",
+      "employeeDeleteFailed": "Impossible de supprimer l'employé"
     }
   },
   "badge": { "new": "Nouveau badge !" },

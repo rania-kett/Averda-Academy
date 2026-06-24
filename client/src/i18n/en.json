@@ -941,6 +941,8 @@
       "certTooltip": "Pass all courses assigned to your group (quiz score ≥ 70%)",
       "reset": "Reset progress",
       "resetConfirm": "This removes all progress for this employee.",
+      "delete": "Delete employee",
+      "deleteConfirm": "Permanently delete this employee and all their data? This cannot be undone.",
       "joinDate": "Joined",
       "langPref": "Language",
       "courseQuiz": "Course quiz",
@@ -1143,7 +1145,17 @@
       "saved": "Defaults saved",
       "loadFailed": "Could not load PPE management data",
       "saveFailed": "Could not save defaults",
-      "issueFailed": "Could not issue equipment"
+      "issueFailed": "Could not issue equipment",
+      "editIssuance": "Edit",
+      "deleteIssuance": "Delete issuance",
+      "deleteIssuanceConfirm": "Delete this PPE issuance? This cannot be undone.",
+      "saveIssuance": "Save changes",
+      "issuanceSaved": "PPE issuance updated",
+      "issuanceDeleted": "PPE issuance deleted",
+      "issuanceSaveFailed": "Could not update issuance",
+      "issuanceDeleteFailed": "Could not delete issuance",
+      "employeeDeleted": "Employee deleted",
+      "employeeDeleteFailed": "Could not delete employee"
     }
   },
   "badge": {

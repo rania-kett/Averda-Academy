@@ -19,6 +19,8 @@ import epiRouter from "./routes/epi.js";   // near other imports           // ne
 
 dotenv.config();
 
+process.stdout.write("[server] Booting API…\n");
+
 process.on("unhandledRejection", (reason) => {
   console.error("[server] Unhandled Rejection:", reason);
   // Do NOT exit the process — log and continue
@@ -162,6 +164,7 @@ app.use(
       return cb(null, false);
     },
     credentials: true,
+    exposedHeaders: ["X-Certificate-Template"],
   })
 );
 app.use(express.json({ limit: "10mb" }));
@@ -207,8 +210,9 @@ app.get("/uploads/:filename", (req, res, next) => {
   }
 });
 
-app.get("/health", (_req, res) => {
-  res.json({ ok: true });
+app.get("/health", async (_req, res) => {
+  const { CERT_TEMPLATE_VERSION } = await import("./services/certificateService.js");
+  res.json({ ok: true, certificateTemplate: CERT_TEMPLATE_VERSION });
 });
 
 app.use("/api/auth", authRouter);
@@ -227,6 +231,17 @@ app.use((_req, _res, next) => {
 app.use(errorHandler);
 
 const port = Number(process.env.PORT) || 3011;
-app.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
+const server = app.listen(port, () => {
+  const msg = `API listening on http://localhost:${port}\n`;
+  process.stdout.write(`[server] ${msg}`);
+});
+server.on("error", (err: NodeJS.ErrnoException) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(
+      `[server] Port ${port} is already in use. Stop the other process or change PORT in server/.env`
+    );
+  } else {
+    console.error("[server] Failed to start:", err);
+  }
+  process.exit(1);
 });

@@ -531,8 +531,10 @@ const ProgressBar = ({ value, max, color }: { value: number; max: number; color?
   );
 };
 
-const Avatar = ({ role, size = 36 }: { role: string; size?: number }) => {
-  const { Icon, color } = getRoleConfig(role);
+const Avatar = ({ role, categoryKey, size = 36 }: { role: string; categoryKey?: CategoryKey | null; size?: number }) => {
+  const { Icon, color } = categoryKey
+    ? { Icon: CATEGORIES[categoryKey].icon, color: CATEGORIES[categoryKey].color }
+    : getRoleConfig(role);
   return (
     <div style={{
       width: size, height: size, borderRadius: "50%",
@@ -1829,7 +1831,7 @@ const EpiView = ({
                 <div key={emp.id} style={{ background: COLORS.white, borderRadius: 16, overflow: "hidden", boxShadow: COLORS.shadow, borderInlineStart: `4px solid ${alertLevel === "danger" ? COLORS.red : alertLevel === "warning" ? COLORS.orange : COLORS.green}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", background: alertLevel === "danger" ? COLORS.redLight : alertLevel === "warning" ? COLORS.orangeLight : COLORS.greenLight }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <Avatar role={emp.role} size={40} />
+                      <Avatar role={emp.role} categoryKey={emp.categoryKey} size={40} />
                       <div>
                         <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text }}>{nameOf(emp.name)}</div>
                         <div style={{ fontSize: 12, color: COLORS.textMuted }}>{emp.employeeCode} • {roleOf(emp.role, emp.categoryKey)}</div>
@@ -1929,6 +1931,7 @@ const EpiView = ({
           selection={selectedEpiItem}
           onClose={() => setSelectedEpiItem(null)}
           onIssueRenewal={(employee, itemCode) => onIssueEpi(employee, itemCode)}
+          onMutated={onRefreshEmployees}
         />
       ) : null}
     </div>

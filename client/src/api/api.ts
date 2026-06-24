@@ -20,7 +20,11 @@ export const userApi = {
     client.put(`/api/user/notifications/${id}/read`),
   readAllNotifications: () => client.put("/api/user/notifications/read-all"),
   certificate: () =>
-    client.get("/api/user/certificate", { responseType: "blob", timeout: 120_000 }),
+    client.get(`/api/user/certificate?_=${Date.now()}`, {
+      responseType: "blob",
+      timeout: 120_000,
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    }),
 };
 
 export const coursesApi = {
@@ -166,10 +170,12 @@ export const adminApi = {
   deactivate: (id: string) => client.post(`/api/admin/employees/${id}/deactivate`),
   resetProgress: (id: string) =>
     client.post(`/api/admin/employees/${id}/reset-progress`),
+  deleteEmployee: (id: string) => client.delete(`/api/admin/employees/${id}`),
   certificate: (id: string) =>
-    client.get(`/api/admin/employees/${id}/certificate`, {
+    client.get(`/api/admin/employees/${id}/certificate?_=${Date.now()}`, {
       responseType: "blob",
       timeout: 120_000,
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     }),
   epiOverview: (params?: Record<string, string>) =>
     client.get("/api/admin/epi/overview", { params }),
@@ -180,6 +186,17 @@ export const adminApi = {
   updateEpiCategoryDefaults: (categoryId: string, body: unknown) =>
     client.put(`/api/admin/epi/category-defaults/${categoryId}`, body),
   issueEpi: (body: unknown) => client.post("/api/admin/epi/issue", body),
+  updateEpiIssuance: (
+    id: string,
+    body: {
+      status?: string;
+      size?: string | null;
+      issuedAt?: string;
+      nextReplacementAt?: string | null;
+    }
+  ) => client.patch(`/api/admin/epi/issuances/${encodeURIComponent(id)}`, body),
+  deleteEpiIssuance: (id: string) =>
+    client.delete(`/api/admin/epi/issuances/${encodeURIComponent(id)}`),
   epiEmployees: (params?: Record<string, string>) =>
     client.get("/api/admin/epi/employees", { params }),
   /** Admin dashboard معدات tab — same summaries as employee GET /api/epi/summary */

@@ -4,6 +4,9 @@ import { NEW_BADGES, NEW_BADGE_KEYS, type NewBadgeKey } from "./badgeCatalog.js"
 import { isLessonQuizCourse } from "../data/courseVisibility.js";
 import { Prisma } from "@prisma/client";
 
+/** Internal marker — hidden from employee notification feed; used for login-day streak tracking. */
+export const ACTIVITY_NOTIFICATION_MARKER = "__activity__";
+
 let ensured = false;
 let epiSchemaReady: boolean | null = null;
 
@@ -54,13 +57,26 @@ async function grantBadge(
   await ensureBadgeCatalog();
   const badge = await prisma.badge.findUnique({ where: { key } });
   if (!badge) return null;
-  const existing = await prisma.userBadge.findUnique({
-    where: { userId_badgeId: { userId, badgeId: badge.id } },
+
+  const already = await prisma.userBadge.findFirst({
+    where: { userId, badgeId: badge.id },
+    select: { id: true },
   });
-  if (existing) return { key, earned: false };
-  await prisma.userBadge.create({
-    data: { userId, badgeId: badge.id },
-  });
+  if (already) return { key, earned: false };
+
+  let inserted = false;
+  try {
+    const created = await prisma.userBadge.create({
+      data: { userId, badgeId: badge.id },
+    });
+    inserted = Boolean(created.id);
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { key, earned: false };
+    }
+    throw e;
+  }
+  if (!inserted) return { key, earned: false };
 
   // User notification (unread) so the employee is aware immediately.
   try {
@@ -129,6 +145,104 @@ async function passedCourseIds(userId: string): Promise<Set<string>> {
   for (const a of quizAttempts) set.add(a.quiz.courseId);
   for (const a of lessonAttempts) set.add(a.courseId);
   return set;
+}
+
+function utcDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function longestConsecutiveDayStreak(sortedDays: string[]): number {
+  if (!sortedDays.length) return 0;
+  let max = 1;
+  let cur = 1;
+  for (let i = 1; i < sortedDays.length; i++) {
+    const prev = new Date(`${sortedDays[i - 1]!}T00:00:00.000Z`);
+    const day = new Date(`${sortedDays[i]!}T00:00:00.000Z`);
+    const diffDays = Math.round((day.getTime() - prev.getTime()) / 86_400_000);
+    cur = diffDays === 1 ? cur + 1 : 1;
+    max = Math.max(max, cur);
+  }
+  return max;
+}
+
+/** Idempotent — records one activity day per user (login / app visit). No schema migration. */
+export async function recordUserActivityDay(userId: string): Promise<void> {
+  const today = utcDay(new Date());
+  const existing = await prisma.notification.findFirst({
+    where: {
+      userId,
+      title: { path: ["en"], equals: ACTIVITY_NOTIFICATION_MARKER },
+      message: { path: ["en"], equals: today },
+    },
+  });
+  if (existing) return;
+  await prisma.notification.create({
+    data: {
+      userId,
+      title: {
+        ar: ACTIVITY_NOTIFICATION_MARKER,
+        en: ACTIVITY_NOTIFICATION_MARKER,
+        fr: ACTIVITY_NOTIFICATION_MARKER,
+      } as object,
+      message: { ar: today, en: today, fr: today } as object,
+      isRead: true,
+    },
+  });
+}
+
+async function collectActivityDays(userId: string): Promise<string[]> {
+  const dates = new Set<string>();
+  const add = (d?: Date | null) => {
+    if (d && !Number.isNaN(d.getTime())) dates.add(utcDay(d));
+  };
+
+  const [user, progress, quizzes, lessons, activityNotes, receptions] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { createdAt: true, assessmentTakenAt: true },
+    }),
+    prisma.lessonProgress.findMany({ where: { userId }, select: { lastAccessedAt: true } }),
+    prisma.quizAttempt.findMany({ where: { userId }, select: { attemptedAt: true } }),
+    prisma.lessonQuizAttempt.findMany({ where: { userId }, select: { takenAt: true } }),
+    prisma.notification.findMany({
+      where: { userId, title: { path: ["en"], equals: ACTIVITY_NOTIFICATION_MARKER } },
+      select: { message: true },
+    }),
+    prisma.epiReceptionConfirmation.findMany({
+      where: { issuance: { userId } },
+      select: { confirmedAt: true },
+      take: 100,
+    }),
+  ]);
+
+  add(user?.createdAt);
+  add(user?.assessmentTakenAt);
+  for (const p of progress) add(p.lastAccessedAt);
+  for (const q of quizzes) add(q.attemptedAt);
+  for (const l of lessons) add(l.takenAt);
+  for (const r of receptions) add(r.confirmedAt);
+  for (const n of activityNotes) {
+    const msg = n.message as { en?: string } | null;
+    if (msg?.en) dates.add(msg.en);
+  }
+
+  return [...dates].sort();
+}
+
+async function checkActiveUser(userId: string, out: string[]) {
+  const days = await collectActivityDays(userId);
+  if (longestConsecutiveDayStreak(days) >= 5) {
+    const g = await grantBadge(userId, NEW_BADGE_KEYS.active_user);
+    if (g?.earned) out.push(NEW_BADGE_KEYS.active_user);
+  }
+}
+
+async function runCoreBadgeChecks(userId: string, out: string[]) {
+  await checkActiveUser(userId, out);
+  await checkLearningBadges(userId, out);
+  await checkEpiBadges(userId, out);
+  await checkSafetyChampionAndTopPerformer(userId, out);
+  await checkChallengeTrifecta(userId, out);
 }
 
 async function checkQuizMasterHistory(userId: string, out: string[]) {
@@ -350,12 +464,18 @@ export async function evaluateBadgesAfterLessonComplete(params: {
 }): Promise<string[]> {
   const { userId } = params;
   const out: string[] = [];
-  // Progress completion alone isn't a reliable indicator in this product; learning badges are driven by quiz passes.
-  await checkLearningBadges(userId, out);
-  await checkEpiBadges(userId, out);
-  await checkSafetyChampionAndTopPerformer(userId, out);
-  await checkChallengeTrifecta(userId, out);
+  await runCoreBadgeChecks(userId, out);
   return out;
+}
+
+export async function evaluateAllBadgesForUser(userId: string): Promise<string[]> {
+  await recordUserActivityDay(userId);
+  return evaluateBadgesAfterLessonComplete({
+    userId,
+    courseId: "",
+    timeSpentSecs: 0,
+    completionPct: 0,
+  });
 }
 
 export async function evaluateBadgesAfterQuizAttempt(params: {
@@ -371,10 +491,7 @@ export async function evaluateBadgesAfterQuizAttempt(params: {
     const g = await grantBadge(userId, NEW_BADGE_KEYS.quiz_master);
     if (g?.earned) out.push(NEW_BADGE_KEYS.quiz_master);
   }
-  await checkLearningBadges(userId, out);
-  await checkEpiBadges(userId, out);
-  await checkSafetyChampionAndTopPerformer(userId, out);
-  await checkChallengeTrifecta(userId, out);
+  await runCoreBadgeChecks(userId, out);
   return out;
 }
 
@@ -389,18 +506,13 @@ export async function evaluateBadgesAfterLessonQuizAttempt(params: {
     const g = await grantBadge(userId, NEW_BADGE_KEYS.quiz_master);
     if (g?.earned) out.push(NEW_BADGE_KEYS.quiz_master);
   }
-  await checkLearningBadges(userId, out);
-  await checkEpiBadges(userId, out);
-  await checkSafetyChampionAndTopPerformer(userId, out);
-  await checkChallengeTrifecta(userId, out);
+  await runCoreBadgeChecks(userId, out);
   return out;
 }
 
 export async function evaluateBadgesAfterEpiProfileUpdate(userId: string): Promise<string[]> {
   const out: string[] = [];
-  await checkEpiBadges(userId, out);
-  await checkSafetyChampionAndTopPerformer(userId, out);
-  await checkChallengeTrifecta(userId, out);
+  await runCoreBadgeChecks(userId, out);
   return out;
 }
 
@@ -411,9 +523,7 @@ export async function evaluateBadgesAfterEpiReceptionConfirm(params: {
   const { userId, issuanceId } = params;
   const out: string[] = [];
   await checkQuickResponder(userId, issuanceId, out);
-  await checkEpiBadges(userId, out);
-  await checkSafetyChampionAndTopPerformer(userId, out);
-  await checkChallengeTrifecta(userId, out);
+  await runCoreBadgeChecks(userId, out);
   return out;
 }
 

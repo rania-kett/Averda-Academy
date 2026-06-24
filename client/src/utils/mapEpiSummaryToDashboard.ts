@@ -4,11 +4,15 @@ import { getDisplayStatus, getEmployeeEpiPillFlags, getStatusLabel, type EpiPill
 import { categoryKeyFromCode, CATEGORIES, type CategoryKey } from "@/config/categories";
 
 export type DashboardEpiItem = {
+  issuanceId?: string;
   type: string;
   label: string;
   /** Arabic catalog label — used for expiry lifespan lookup */
   labelAr: string;
   status: "received" | "pending" | "needs_renewal" | "not_issued";
+  /** Raw DB status for admin edit */
+  serverStatus?: string;
+  size?: string | null;
   lastIssued?: string;
   confirmedAt?: string;
   nextReplacementAt?: string | null;
@@ -85,10 +89,13 @@ export function mapEpiSummaryToDashboardEmployee(
   const profile = row.summary.profile;
 
   const dashboardItems: DashboardEpiItem[] = items.map(({ item, passport, status }) => ({
+    issuanceId: passport?.id ? String(passport.id) : undefined,
     type: item.code,
     label: item.labelAr || item.labelFr || item.labelEn || item.code,
     labelAr: item.labelAr || item.labelFr || item.labelEn || item.code,
     status: mapRowStatusToDashboard(status),
+    serverStatus: passport?.status ? String(passport.status) : undefined,
+    size: passport?.size ?? null,
     lastIssued: passport?.issuedAt ? String(passport.issuedAt) : undefined,
     confirmedAt: passport?.lastReceptionAt ? String(passport.lastReceptionAt) : undefined,
     nextReplacementAt: (passport as any)?.nextReplacementAt ? String((passport as any).nextReplacementAt) : null,

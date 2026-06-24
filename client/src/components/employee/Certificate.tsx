@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { buildCertificatePreviewHtml, generateCertificate } from "@/utils/generateCertificate";
+import type { AxiosError } from "axios";
+import { adminApi, userApi } from "@/api/api";
 import {
   buildCertificateId,
   CERT_HEIGHT_PX,
@@ -25,8 +26,9 @@ export type CertificateProps = {
   userId?: string;
 };
 
-function safeFileName(name: string): string {
-  return (name || "employee").replace(/[\\/:*?"<>|]/g, "-").trim();
+function downloadFileName(employeeName: string): string {
+  const cleaned = (employeeName || "employee").replace(/[\\/:*?"<>|]/g, "-").trim();
+  return `certificate-${cleaned}-averda.pdf`;
 }
 
 async function downloadBlob(blob: Blob, fileName: string): Promise<void> {
@@ -41,6 +43,54 @@ async function downloadBlob(blob: Blob, fileName: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+async function fetchCertificatePdf(
+  downloadApi: "user" | "admin",
+  userId?: string
+): Promise<{ blob: Blob; templateVer: string }> {
+  const response =
+    downloadApi === "admin"
+      ? await adminApi.certificate(userId!)
+      : await userApi.certificate();
+
+  const blob = response.data as Blob;
+  const contentType = String(response.headers["content-type"] ?? "");
+  const templateVer = String(response.headers["x-certificate-template"] ?? "");
+  if (templateVer) {
+    console.info("[certificate] server template:", templateVer);
+  }
+  if (!contentType.includes("application/pdf")) {
+    const text = await blob.text();
+    let message = text;
+    try {
+      const parsed = JSON.parse(text) as { message?: string };
+      if (parsed.message) message = parsed.message;
+    } catch {
+      /* raw text */
+    }
+    throw new Error(message || "Invalid certificate response");
+  }
+  if (blob.size < 2048) {
+    throw new Error("Certificate file was empty or incomplete");
+  }
+  return { blob, templateVer };
+}
+
+async function logCertificateError(err: unknown): Promise<void> {
+  const ax = err as AxiosError<Blob>;
+  if (ax.response?.data instanceof Blob) {
+    try {
+      const text = await ax.response.data.text();
+      const parsed = JSON.parse(text) as { message?: string };
+      console.error("Certificate export failed:", parsed.message ?? text);
+      return;
+    } catch {
+      console.error("Certificate export failed:", err);
+      return;
+    }
+  }
+  console.error("Certificate export failed:", err);
+}
+
 export function Certificate({
   employeeName,
   role,
@@ -53,10 +103,14 @@ export function Certificate({
   showExport = true,
   showExportIcon = true,
   className = "",
+  downloadApi = "user",
+  userId,
 }: CertificateProps) {
   const { t } = useTranslation();
   const previewRef = useRef<HTMLDivElement>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const resolvedCertId = certId ?? buildCertificateId(employeeName, date);
   const resolvedLocale = resolveCertificateLocale(locale);
   const previewScale = 0.42;
@@ -65,46 +119,59 @@ export function Certificate({
 
   useEffect(() => {
     if (!showPreview || !previewRef.current) return;
+    if (downloadApi === "admin" && !userId) return;
 
     let cancelled = false;
+    setPreviewLoading(true);
 
     (async () => {
-      const html = await buildCertificatePreviewHtml({
-        name: employeeName,
-        role,
-        programName,
-        avgScore: score,
-        completionDate: date,
-        certificateId: resolvedCertId,
-        locale: resolvedLocale,
-      });
-      if (cancelled || !previewRef.current) return;
-      previewRef.current.innerHTML = html;
+      try {
+        const { blob } = await fetchCertificatePdf(downloadApi, userId);
+        if (cancelled || !previewRef.current) return;
+        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+        const url = URL.createObjectURL(blob);
+        previewUrlRef.current = url;
+        previewRef.current.innerHTML = `<iframe title="certificate" src="${url}" width="${CERT_WIDTH_PX}" height="${CERT_HEIGHT_PX}" style="border:0;display:block"></iframe>`;
+      } catch (err) {
+        await logCertificateError(err);
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
     })();
 
     return () => {
       cancelled = true;
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
     };
-  }, [employeeName, role, programName, score, date, resolvedCertId, resolvedLocale, showPreview]);
+  }, [
+    employeeName,
+    role,
+    programName,
+    score,
+    date,
+    resolvedCertId,
+    resolvedLocale,
+    showPreview,
+    downloadApi,
+    userId,
+  ]);
 
   const handleExport = async () => {
     if (exporting) return;
+    if (downloadApi === "admin" && !userId) {
+      console.error("Certificate export: admin API requires userId");
+      window.alert(t("employee.profile.certificateExportFailed"));
+      return;
+    }
     setExporting(true);
     try {
-      const fileName = `certificate-${safeFileName(employeeName)}-averda.pdf`;
-      const doc = await generateCertificate({
-        name: employeeName,
-        role,
-        programName,
-        avgScore: score,
-        completionDate: date,
-        certificateId: resolvedCertId,
-        locale: resolvedLocale,
-      });
-      const blob = doc.output("blob");
-      await downloadBlob(blob, fileName);
+      const { blob } = await fetchCertificatePdf(downloadApi, userId);
+      await downloadBlob(blob, downloadFileName(employeeName));
     } catch (err) {
-      console.error("Certificate export failed:", err);
+      await logCertificateError(err);
       window.alert(t("employee.profile.certificateExportFailed"));
     } finally {
       setExporting(false);
@@ -119,16 +186,25 @@ export function Certificate({
           style={{ width: previewW, height: previewH }}
           aria-hidden={!showPreview}
         >
-          <div
-            style={{
-              width: CERT_WIDTH_PX,
-              height: CERT_HEIGHT_PX,
-              transform: `scale(${previewScale})`,
-              transformOrigin: "top left",
-            }}
-          >
-            <div ref={previewRef} />
-          </div>
+          {previewLoading ? (
+            <div
+              className="flex h-full items-center justify-center text-[13px] font-semibold text-[#57534E]"
+              style={{ width: previewW, height: previewH }}
+            >
+              {t("employee.profile.generatingCertificate")}
+            </div>
+          ) : (
+            <div
+              style={{
+                width: CERT_WIDTH_PX,
+                height: CERT_HEIGHT_PX,
+                transform: `scale(${previewScale})`,
+                transformOrigin: "top left",
+              }}
+            >
+              <div ref={previewRef} />
+            </div>
+          )}
         </div>
       )}
 

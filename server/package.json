@@ -17,7 +17,9 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset-training": "tsx prisma/resetTraining.ts"
+    "db:reset-training": "tsx prisma/resetTraining.ts",
+    "postinstall": "puppeteer browsers install chrome",
+    "cert:test": "tsx scripts/test-certificate-pdf.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",

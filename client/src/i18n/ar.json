@@ -941,6 +941,8 @@
       "certTooltip": "أكمل جميع الدورات المخصصة لمجموعتك بنجاح في الاختبارات (≥70٪)",
       "reset": "إعادة تعيين التقدم",
       "resetConfirm": "سيُحذف كل تقدم هذا الموظف.",
+      "delete": "حذف الموظف",
+      "deleteConfirm": "حذف هذا الموظف وجميع بياناته نهائياً؟ لا يمكن التراجع عن هذا الإجراء.",
       "joinDate": "تاريخ الانضمام",
       "langPref": "اللغة",
       "courseQuiz": "اختبار الدورة",
@@ -1143,7 +1145,17 @@
       "saved": "تم حفظ الإعدادات",
       "loadFailed": "تعذر تحميل إدارة EPI",
       "saveFailed": "تعذر حفظ الإعدادات",
-      "issueFailed": "تعذر إرسال المعدات"
+      "issueFailed": "تعذر إرسال المعدات",
+      "editIssuance": "تعديل",
+      "deleteIssuance": "حذف الإصدار",
+      "deleteIssuanceConfirm": "حذف إصدار المعدات هذا؟ لا يمكن التراجع.",
+      "saveIssuance": "حفظ التغييرات",
+      "issuanceSaved": "تم تحديث إصدار المعدات",
+      "issuanceDeleted": "تم حذف إصدار المعدات",
+      "issuanceSaveFailed": "تعذر تحديث الإصدار",
+      "issuanceDeleteFailed": "تعذر حذف الإصدار",
+      "employeeDeleted": "تم حذف الموظف",
+      "employeeDeleteFailed": "تعذر حذف الموظف"
     }
   },
   "badge": { "new": "شارة جديدة!" },
