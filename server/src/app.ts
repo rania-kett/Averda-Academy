@@ -16,7 +16,10 @@ import { errorHandler, AppError } from "./middleware/errorHandler.js";
 import { ensureUploadDir } from "./middleware/upload.js";
 import fs from "fs";
 import epiRouter from "./routes/epi.js";   // near other imports           // near other app.use() calls
+import { resolveClientPath } from "./utils/resolveClientPath.js";
 
+const __dirnameApp = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirnameApp, "../../.env") });
 dotenv.config();
 
 process.stdout.write("[server] Booting API…\n");
@@ -33,9 +36,12 @@ const epiProofsDir = path.join(uploadDir, "epi-proofs");
 if (!fs.existsSync(epiProofsDir)) {
   fs.mkdirSync(epiProofsDir, { recursive: true });
 }
-// IMPORTANT: do not rely on process.cwd() here because the API may be started with cwd = "server/".
-// Resolve relative to this file instead: server/src → repo root → client/public/courses
-const COURSES_DIR = path.resolve(__dirname, "../../client/public/courses");
+// IMPORTANT: resolve client paths for both dev (tsx) and prod (compiled dist).
+const COURSES_DIR = process.env.COURSES_DIR?.trim() || resolveClientPath("public", "courses");
+const CLIENT_DIST = process.env.CLIENT_DIST?.trim() || resolveClientPath("dist");
+const serveClient =
+  process.env.SERVE_CLIENT === "true" ||
+  (process.env.NODE_ENV === "production" && process.env.SERVE_CLIENT !== "false");
 const bundledPlaceholder = path.join(__dirname, "../assets/placeholder.pdf");
 const uploadPlaceholder = path.join(uploadDir, "placeholder.pdf");
 if (fs.existsSync(bundledPlaceholder)) {
@@ -127,7 +133,7 @@ app.use('/courses', (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.setHeader('X-Frame-Options', 'ALLOWALL');
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+    res.setHeader('Access-Control-Allow-Origin', clientUrl);
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Content-Disposition', 'inline');
     const stream = fs.createReadStream(chosenPath);
@@ -223,6 +229,25 @@ app.use("/api/user", userRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/admin/courses", adminCoursesRouter);
 app.use("/api/admin", adminRouter);
+
+if (serveClient && fs.existsSync(CLIENT_DIST)) {
+  process.stdout.write(`[server] Serving client from ${CLIENT_DIST}\n`);
+  app.use(express.static(CLIENT_DIST, { index: false, maxAge: "1h" }));
+  app.get("*", (req, res, next) => {
+    if (
+      req.path.startsWith("/api") ||
+      req.path.startsWith("/uploads") ||
+      req.path.startsWith("/courses") ||
+      req.path === "/health"
+    ) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(CLIENT_DIST, "index.html"), (err) => {
+      if (err) next(err);
+    });
+  });
+}
 
 app.use((_req, _res, next) => {
   next(new AppError(404, "Not found"));

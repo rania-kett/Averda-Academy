@@ -24,6 +24,8 @@ client/.vite/
 .env
 .env.*
 !.env.example
+!.env.production.example
+server/.env
 client/.env.local
 
 # Prisma generated client artifacts (kept in node_modules anyway)
