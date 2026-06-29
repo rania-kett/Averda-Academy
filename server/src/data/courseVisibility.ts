@@ -88,6 +88,7 @@ export function isSweepingAgainstTrafficCourse(slug: string, title: unknown, pdf
 
 /** Traffic law (custom quiz) — match Arabic/FR/EN title or PDF filename. */
 export function isTrafficLawCourse(slug: string, title: unknown, pdfUrl?: string | null): boolean {
+  if (slug === "traffic-law-respect") return true;
   const ar = titleAr(title);
   if (ar.includes("احترام") && ar.includes("قانون") && ar.includes("السير")) return true;
   const fr = titleFr(title).toLowerCase();

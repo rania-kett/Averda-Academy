@@ -25,14 +25,20 @@ export function errorHandler(
     });
     return;
   }
-  if (
-    err instanceof Prisma.PrismaClientInitializationError ||
-    err instanceof Prisma.PrismaClientKnownRequestError
-  ) {
+  if (err instanceof Prisma.PrismaClientInitializationError) {
     res.status(503).json({
       error: "Database unavailable. Please try again later.",
     });
     return;
+  }
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    const connCodes = new Set(["P1000", "P1001", "P1002", "P1017"]);
+    if (connCodes.has(err.code)) {
+      res.status(503).json({
+        error: "Database unavailable. Please try again later.",
+      });
+      return;
+    }
   }
   console.error(err);
   res.status(500).json({ error: "Internal server error" });

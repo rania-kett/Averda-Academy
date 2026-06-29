@@ -42,6 +42,16 @@ import {
 import { countAdminVisibleCourses } from "../utils/adminCourseVisibility.js";
 
 const router = Router();
+
+/** Orphan quiz rows (deleted users) break required `include: { user }` — filter without deleting data. */
+async function existingUserIds(): Promise<string[]> {
+  const rows = await prisma.user.findMany({ select: { id: true } });
+  return rows.map((r) => r.id);
+}
+
+function userIdInFilter(ids: string[]) {
+  return ids.length > 0 ? { userId: { in: ids } } : { userId: { in: ["__none__"] } };
+}
 router.use(authMiddleware);
 router.use(adminOnly);
 
@@ -203,8 +213,15 @@ router.get("/stats", async (_req, res, next) => {
     }
     const completionsWeek = completionsWeekSet.size;
 
-    const quizScores = await prisma.quizAttempt.findMany({ select: { score: true } });
+    const knownUserIds = await existingUserIds();
+    const knownUsers = userIdInFilter(knownUserIds);
+
+    const quizScores = await prisma.quizAttempt.findMany({
+      where: knownUsers,
+      select: { score: true },
+    });
     const lessonQuizScores = await prisma.lessonQuizAttempt.findMany({
+      where: knownUsers,
       select: { percentage: true },
     });
     const allScores = [
@@ -218,7 +235,7 @@ router.get("/stats", async (_req, res, next) => {
 
     const failGroups = await prisma.quizAttempt.groupBy({
       by: ["userId", "quizId"],
-      where: { passed: false },
+      where: { passed: false, ...knownUsers },
       _count: { _all: true },
     });
     const atRiskCount = new Set(
@@ -226,6 +243,7 @@ router.get("/stats", async (_req, res, next) => {
     ).size;
 
     const recentAttempts = await prisma.quizAttempt.findMany({
+      where: knownUsers,
       take: 10,
       orderBy: { attemptedAt: "desc" },
       include: {
@@ -255,7 +273,7 @@ router.get("/stats", async (_req, res, next) => {
     }));
 
     const topScores = await prisma.quizAttempt.findMany({
-      where: { attemptedAt: { gte: startMonth } },
+      where: { attemptedAt: { gte: startMonth }, ...knownUsers },
       orderBy: { score: "desc" },
       take: 5,
       include: {
@@ -297,7 +315,11 @@ router.get("/activity", async (req, res, next) => {
   try {
     const limit = Math.min(50, Math.max(10, Number(req.query.limit) || 30));
 
+    const knownUserIds = await existingUserIds();
+    const knownUsers = userIdInFilter(knownUserIds);
+
     const attemptsPromise = prisma.quizAttempt.findMany({
+      where: knownUsers,
       take: limit,
       orderBy: { attemptedAt: "desc" },
       include: {
@@ -307,6 +329,7 @@ router.get("/activity", async (req, res, next) => {
     });
 
     const lessonQuizAttemptsPromise = prisma.lessonQuizAttempt.findMany({
+      where: knownUsers,
       take: limit,
       orderBy: { takenAt: "desc" },
       include: {
@@ -554,6 +577,8 @@ router.get(
           employeeId: u.employeeId,
           name: u.name,
           category: u.category,
+          categoryId: u.categoryId,
+          truckNumber: (u as { truckNumber?: string | null }).truckNumber ?? null,
           group: employeeGroupFromCategoryCode(u.category?.code),
           language: u.language,
           avatarColor: u.avatarColor,
@@ -738,6 +763,116 @@ router.post(
     }
   }
 );
+
+router.patch(
+  "/employees/:id",
+  param("id").notEmpty(),
+  body("name").optional().trim().notEmpty(),
+  body("categoryId").optional().isString().notEmpty(),
+  body("pin").optional().isLength({ min: 4, max: 4 }).isNumeric(),
+  body("isActive").optional().isBoolean(),
+  body("truckNumber").optional({ nullable: true }).isString().trim(),
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ error: "Validation failed", details: errors.array() });
+        return;
+      }
+      const uid = req.params!.id!;
+      const { name, categoryId, pin, isActive, truckNumber } = req.body as {
+        name?: string;
+        categoryId?: string;
+        pin?: string;
+        isActive?: boolean;
+        truckNumber?: string | null;
+      };
+
+      const existing = await prisma.user.findUnique({
+        where: { id: uid },
+        select: { id: true, role: true },
+      });
+      if (!existing || existing.role !== "EMPLOYEE") {
+        throw new AppError(404, "Employee not found");
+      }
+
+      const updateData: {
+        name?: string;
+        categoryId?: string;
+        pin?: string;
+        isActive?: boolean;
+        truckNumber?: string | null;
+      } = {};
+      if (name !== undefined) updateData.name = name.trim();
+      if (categoryId !== undefined) {
+        const cat = await prisma.category.findUnique({ where: { id: categoryId } });
+        if (!cat) throw new AppError(404, "Category not found");
+        updateData.categoryId = categoryId;
+      }
+      if (isActive !== undefined) updateData.isActive = isActive;
+      if (truckNumber !== undefined) {
+        updateData.truckNumber =
+          truckNumber === null ? null : truckNumber.trim() || null;
+      }
+      if (pin !== undefined) {
+        updateData.pin = await hashPin(pin);
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: uid },
+        data: updateData,
+        include: { category: true },
+      });
+      res.json(updated);
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+router.delete("/employees/:id", param("id").notEmpty(), async (req, res, next) => {
+  try {
+    const uid = req.params!.id!;
+    const user = await prisma.user.findUnique({
+      where: { id: uid },
+      select: { id: true, role: true },
+    });
+    if (!user) throw new AppError(404, "Employee not found");
+    if (user.role === "ADMIN") throw new AppError(403, "Cannot delete admin");
+    if (user.role !== "EMPLOYEE") throw new AppError(404, "Employee not found");
+
+    const issuances = await prisma.epiIssuance.findMany({
+      where: { userId: uid },
+      select: { id: true },
+    });
+    const issuanceIds = issuances.map((e) => e.id);
+
+    await prisma.$transaction(async (tx) => {
+      if (issuanceIds.length) {
+        await tx.epiReceptionConfirmation.deleteMany({
+          where: { issuanceId: { in: issuanceIds } },
+        });
+      }
+      await tx.epiReplacementRequest.deleteMany({ where: { userId: uid } });
+      await tx.epiRenewalRequest.deleteMany({ where: { userId: uid } });
+      await tx.epiIssuance.deleteMany({ where: { userId: uid } });
+      await tx.epiComplianceProof.deleteMany({ where: { userId: uid } });
+      await tx.epiFeedback.deleteMany({ where: { userId: uid } });
+      await tx.epiProfile.deleteMany({ where: { userId: uid } });
+      await tx.lessonQuizAttempt.deleteMany({ where: { userId: uid } });
+      await tx.quizAttempt.deleteMany({ where: { userId: uid } });
+      await tx.lessonProgress.deleteMany({ where: { userId: uid } });
+      await tx.userBadge.deleteMany({ where: { userId: uid } });
+      await tx.certificate.deleteMany({ where: { userId: uid } });
+      await tx.notification.deleteMany({ where: { userId: uid } });
+      await tx.user.delete({ where: { id: uid } });
+    });
+
+    res.json({ success: true, message: "Employee deleted successfully" });
+  } catch (e) {
+    next(e);
+  }
+});
 
 router.get(
   "/employees/:id/certificate",
@@ -1390,6 +1525,51 @@ router.get("/epi/catalog", async (_req, res, next) => {
   }
 });
 
+router.delete(
+  "/epi/catalog/:code",
+  param("code").isString().notEmpty(),
+  query("force").optional().isIn(["true", "1"]),
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ error: "Validation failed", details: errors.array() });
+        return;
+      }
+      const code = req.params!.code!;
+      const force = req.query?.force === "true" || req.query?.force === "1";
+
+      const item = await epiDb.epiItemCatalog.findUnique({ where: { code } });
+      if (!item) throw new AppError(404, "Catalog item not found");
+
+      const inUse = await prisma.epiIssuance.findFirst({ where: { itemCode: code } });
+      if (inUse && !force) {
+        res.status(409).json({
+          error:
+            "Impossible de supprimer: cet équipement a déjà été émis à des employés.",
+          canForce: true,
+        });
+        return;
+      }
+
+      await epiDb.epiCategoryDefaultItem.deleteMany({ where: { itemCode: code } });
+
+      if (inUse && force) {
+        await epiDb.epiItemCatalog.update({
+          where: { code },
+          data: { active: false },
+        });
+      } else {
+        await epiDb.epiItemCatalog.delete({ where: { code } });
+      }
+
+      res.json({ success: true });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
 router.get(
   "/epi/category-defaults/:categoryId",
   param("categoryId").isString().notEmpty(),
@@ -1498,7 +1678,7 @@ async function seedEpiExampleDataForEmployees(tx: any) {
 
   const employees = await tx.user.findMany({
     where: { role: "EMPLOYEE", isActive: true },
-    select: { id: true },
+    select: { id: true, categoryId: true },
     take: 500,
   });
   const catalog = (await tx.epiItemCatalog.findMany({
@@ -1509,6 +1689,7 @@ async function seedEpiExampleDataForEmployees(tx: any) {
   })) as CatalogRow[];
   if (!catalog.length) return { createdProfiles: 0, createdIssuances: 0 };
 
+  const catalogByCode = new Map(catalog.map((c) => [c.code, c]));
   const now = new Date();
   let createdProfiles = 0;
   let createdIssuances = 0;
@@ -1537,10 +1718,26 @@ async function seedEpiExampleDataForEmployees(tx: any) {
       createdProfiles += 1;
     }
 
-    const desired = 6 + Math.floor(Math.random() * 4); // 6-9 items
-    const available = catalog.filter((c) => !existingCodes.has(c.code));
-    const need = Math.max(0, desired - existingCodes.size);
-    const items = pick<CatalogRow>(available.length ? available : catalog, need);
+    const categoryDefaults = e.categoryId
+      ? await tx.epiCategoryDefaultItem.findMany({
+          where: { categoryId: e.categoryId, required: true },
+          orderBy: { sortOrder: "asc" },
+          select: { itemCode: true },
+        })
+      : [];
+
+    const defaultCodes = categoryDefaults.map((d: { itemCode: string }) => d.itemCode);
+    const pool =
+      defaultCodes.length > 0
+        ? defaultCodes
+            .map((code: string) => catalogByCode.get(code))
+            .filter((row: CatalogRow | undefined): row is CatalogRow => Boolean(row))
+        : catalog;
+
+    const available = pool.filter((c: CatalogRow) => !existingCodes.has(c.code));
+    const need = Math.max(0, Math.min(pool.length, 6 + Math.floor(Math.random() * 3)) - existingCodes.size);
+    const items = pick<CatalogRow>(available.length ? available : pool, need);
+
     for (const it of items) {
       const ageDays = Math.floor(Math.random() * 120);
       const issuedAt = addDays(now, -ageDays);
@@ -1599,6 +1796,61 @@ router.post("/epi/demo-seed", async (_req, res, next) => {
   try {
     const result = await epiDb.$transaction(async (tx: any) => seedEpiExampleDataForEmployees(tx));
     res.json({ ok: true, ...result });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const EPI_ISSUANCE_STATUSES = ["issued", "received", "replaced", "expired", "pending_renewal"] as const;
+
+router.patch(
+  "/epi/issuances/:id",
+  param("id").isString().notEmpty(),
+  body("status").optional().isIn([...EPI_ISSUANCE_STATUSES]),
+  body("size").optional().isString().isLength({ max: 40 }),
+  body("issuedAt").optional().isISO8601(),
+  body("nextReplacementAt").optional({ nullable: true }).isISO8601(),
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ error: "Validation failed", details: errors.array() });
+        return;
+      }
+      const id = String(req.params!.id);
+      const existing = await prisma.epiIssuance.findUnique({ where: { id } });
+      if (!existing) throw new AppError(404, "EPI issuance not found");
+
+      const data: {
+        status?: string;
+        size?: string | null;
+        issuedAt?: Date;
+        nextReplacementAt?: Date | null;
+      } = {};
+      if (req.body.status) data.status = String(req.body.status);
+      if (req.body.size !== undefined) data.size = req.body.size ? String(req.body.size) : null;
+      if (req.body.issuedAt) data.issuedAt = new Date(req.body.issuedAt);
+      if (req.body.nextReplacementAt !== undefined) {
+        data.nextReplacementAt = req.body.nextReplacementAt
+          ? new Date(req.body.nextReplacementAt)
+          : null;
+      }
+
+      const updated = await prisma.epiIssuance.update({ where: { id }, data });
+      res.json({ issuance: updated });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+router.delete("/epi/issuances/:id", param("id").isString().notEmpty(), async (req, res, next) => {
+  try {
+    const id = String(req.params!.id);
+    const existing = await prisma.epiIssuance.findUnique({ where: { id } });
+    if (!existing) throw new AppError(404, "EPI issuance not found");
+    await prisma.epiIssuance.delete({ where: { id } });
+    res.json({ success: true });
   } catch (e) {
     next(e);
   }

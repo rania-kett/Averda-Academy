@@ -22,6 +22,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, BarChart2, BookOpen, Briefcase, HardHat, Home, Pencil, RefreshCw, Settings, Trash2, Users, X, type LucideIcon } from "lucide-react";
 import { COLORS, SIDEBAR } from "@/components/admin/adminThemeTokens";
+import { ConfirmDeleteModal } from "@/components/admin/ConfirmDeleteModal";
+import { EditEmployeeModal, type EditEmployeeTarget } from "@/components/admin/EditEmployeeModal";
 import { LanguageSwitcherCompact } from "@/components/LanguageSwitcherCompact";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useDashboardI18n, epiDisplayStatusLabel, epiStatusLabel, employeeStatusLabel, courseTitleForLang, categoryLabel, type CategoryLang } from "@/pages/admin/dashboardI18n";
@@ -73,6 +75,8 @@ interface Employee {
   role: string;
   roleLabel: string;
   categoryKey?: CategoryKey;
+  categoryId?: string | null;
+  truckNumber?: string | null;
   avgScore: number;
   completedCourses: number;
   totalCourses: number;
@@ -227,6 +231,8 @@ type ApiAdminCourse = {
   categories?: { code?: string; name?: { ar?: string } }[];
   completionRate?: number;
   quiz?: { id: string } | null;
+  hasLessonQuiz?: boolean;
+  hasQuiz?: boolean;
 };
 
 /** Map GET /api/admin/courses → one row per course (same shape as employee CourseCard). */
@@ -258,7 +264,7 @@ function mapAdminCoursesToDashboard(raw: unknown): Course[] {
       categoryCodes,
       completionRate: c.completionRate ?? 0,
       avgScore: 0,
-      hasQuiz: !!c.quiz,
+      hasQuiz: Boolean(c.hasQuiz ?? c.hasLessonQuiz ?? c.quiz),
       enrolledCount: 0,
       isHsseqFoundation: c.isHsseqFoundation,
       isActive: c.isActive !== false,
@@ -301,7 +307,9 @@ type ApiAdminEmployeeRow = {
   id: string;
   employeeId: string;
   name: string;
-  category?: { code?: string; name?: { ar?: string } } | null;
+  category?: { id?: string; code?: string; name?: { ar?: string } } | null;
+  categoryId?: string | null;
+  truckNumber?: string | null;
   coursesDone?: number;
   coursesTotal?: number;
   avgScore?: number;
@@ -331,6 +339,8 @@ function mapApiEmployeesToDashboard(raw: unknown): Employee[] {
       role: roleLabel,
       roleLabel,
       categoryKey: catKey ?? undefined,
+      categoryId: u.categoryId ?? u.category?.id ?? null,
+      truckNumber: u.truckNumber ?? null,
       avgScore: u.avgScore ?? 0,
       completedCourses: u.coursesDone ?? 0,
       totalCourses: u.coursesTotal ?? 0,
@@ -531,8 +541,10 @@ const ProgressBar = ({ value, max, color }: { value: number; max: number; color?
   );
 };
 
-const Avatar = ({ role, size = 36 }: { role: string; size?: number }) => {
-  const { Icon, color } = getRoleConfig(role);
+const Avatar = ({ role, categoryKey, size = 36 }: { role: string; categoryKey?: CategoryKey | null; size?: number }) => {
+  const { Icon, color } = categoryKey
+    ? { Icon: CATEGORIES[categoryKey].icon, color: CATEGORIES[categoryKey].color }
+    : getRoleConfig(role);
   return (
     <div style={{
       width: size, height: size, borderRadius: "50%",
@@ -1321,7 +1333,17 @@ const DashboardView = ({
   );
 };
 
-const EmployeesView = ({ employees, onSelect }: { employees: Employee[]; onSelect: (e: Employee) => void }) => {
+const EmployeesView = ({
+  employees,
+  onSelect,
+  onEdit,
+  onDelete,
+}: {
+  employees: Employee[];
+  onSelect: (e: Employee) => void;
+  onEdit: (e: Employee) => void;
+  onDelete: (e: Employee) => void;
+}) => {
   const { t, locale, nameOf, roleOf, categoryLang } = useDashboardI18n();
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | CategoryKey>("all");
@@ -1385,6 +1407,11 @@ const EmployeesView = ({ employees, onSelect }: { employees: Employee[]; onSelec
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text }}>{nameOf(emp.name)}</div>
+                          {emp.categoryKey === "driver" && emp.truckNumber && (
+                            <span title={emp.truckNumber} style={{ fontSize: 14, cursor: "help" }} aria-label={emp.truckNumber}>
+                              🚛
+                            </span>
+                          )}
                           {employeeHasCertificate(emp) && (
                             <span
                               title={t("admin.page.employees.hasCertificate")}
@@ -1424,7 +1451,27 @@ const EmployeesView = ({ employees, onSelect }: { employees: Employee[]; onSelec
                   <td style={{ padding: "12px 16px" }}><StatusBadge status={emp.status} /></td>
                   <td style={{ padding: "12px 16px", fontSize: 12, color: COLORS.textMuted }}>{new Date(emp.lastActivity).toLocaleDateString(locale)}</td>
                   <td style={{ padding: "12px 16px" }}>
-                    <button onClick={() => onSelect(emp)} style={{ padding: "5px 12px", borderRadius: 6, border: `1.5px solid ${COLORS.navy}`, background: COLORS.btnBg, color: COLORS.brand, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{t("admin.page.employees.view")}</button>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <button onClick={() => onSelect(emp)} style={{ padding: "5px 12px", borderRadius: 6, border: `1.5px solid ${COLORS.navy}`, background: COLORS.btnBg, color: COLORS.brand, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{t("admin.page.employees.view")}</button>
+                      <button
+                        type="button"
+                        onClick={() => onEdit(emp)}
+                        title={t("admin.employees.edit")}
+                        aria-label={t("admin.employees.edit")}
+                        style={{ padding: "5px 8px", borderRadius: 6, border: `1.5px solid ${COLORS.border}`, background: COLORS.btnBg, color: COLORS.brand, cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(emp)}
+                        title={t("admin.employees.delete")}
+                        aria-label={t("admin.employees.delete")}
+                        style={{ padding: "5px 8px", borderRadius: 6, border: `1.5px solid ${COLORS.red}`, background: COLORS.redLight, color: COLORS.red, cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -1829,7 +1876,7 @@ const EpiView = ({
                 <div key={emp.id} style={{ background: COLORS.white, borderRadius: 16, overflow: "hidden", boxShadow: COLORS.shadow, borderInlineStart: `4px solid ${alertLevel === "danger" ? COLORS.red : alertLevel === "warning" ? COLORS.orange : COLORS.green}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", background: alertLevel === "danger" ? COLORS.redLight : alertLevel === "warning" ? COLORS.orangeLight : COLORS.greenLight }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <Avatar role={emp.role} size={40} />
+                      <Avatar role={emp.role} categoryKey={emp.categoryKey} size={40} />
                       <div>
                         <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text }}>{nameOf(emp.name)}</div>
                         <div style={{ fontSize: 12, color: COLORS.textMuted }}>{emp.employeeCode} • {roleOf(emp.role, emp.categoryKey)}</div>
@@ -1929,6 +1976,7 @@ const EpiView = ({
           selection={selectedEpiItem}
           onClose={() => setSelectedEpiItem(null)}
           onIssueRenewal={(employee, itemCode) => onIssueEpi(employee, itemCode)}
+          onMutated={onRefreshEmployees}
         />
       ) : null}
     </div>
@@ -2521,6 +2569,7 @@ const EmployeeDetailModal = ({ employee, onClose }: { employee: Employee; onClos
   const certRole = employee.categoryKey
     ? categoryLabel(employee.categoryKey, certLocale as CategoryLang)
     : employee.role;
+  const isDriver = employee.categoryKey === "driver";
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
@@ -2536,6 +2585,28 @@ const EmployeeDetailModal = ({ employee, onClose }: { employee: Employee; onClos
                   <RoleIcon role={employee.role} size={14} />
                   {roleOf(employee.role, employee.categoryKey)}
                 </span>
+                {isDriver && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "4px 10px",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background: "rgba(255,255,255,0.12)",
+                      color: "rgba(255,255,255,0.9)",
+                    }}
+                  >
+                    <span aria-hidden>🚛</span>
+                    <span style={{ opacity: 0.85 }}>{t("admin.employees.truckNumber")}:</span>
+                    <span dir="ltr" style={{ fontWeight: 800 }}>
+                      {employee.truckNumber?.trim() || t("admin.employees.truckNotAssigned")}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             <button onClick={onClose} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: COLORS.white, width: 32, height: 32, borderRadius: "50%", cursor: "pointer", fontSize: 16 }}>✕</button>
@@ -2622,6 +2693,9 @@ export function DashboardPage() {
   const [coursesCategoryFilter, setCoursesCategoryFilter] = useState<"all" | CategoryKey>("all");
   const [newCourseDefaultCategories, setNewCourseDefaultCategories] = useState<CategoryKey[] | undefined>();
   const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<EditEmployeeTarget | null>(null);
+  const [deleteEmployeeTarget, setDeleteEmployeeTarget] = useState<Employee | null>(null);
+  const [deleteEmployeeLoading, setDeleteEmployeeLoading] = useState(false);
   const [epiStatusFilter, setEpiStatusFilter] = useState<EpiStatusFilter>("all");
   const [pendingRenewalCount, setPendingRenewalCount] = useState(0);
   const [issueEpiEmployee, setIssueEpiEmployee] = useState<IssueEpiEmployee | null>(null);
@@ -3123,7 +3197,21 @@ export function DashboardPage() {
               />
             )}
             {activeTab === "employees" && !empError && (
-              <EmployeesView employees={employees} onSelect={setSelectedEmployee} />
+              <EmployeesView
+                employees={employees}
+                onSelect={setSelectedEmployee}
+                onEdit={(emp) =>
+                  setEditingEmployee({
+                    id: emp.id,
+                    name: emp.name,
+                    categoryId: emp.categoryId,
+                    categoryCode: emp.categoryKey ?? null,
+                    isActive: emp.isActive,
+                    truckNumber: emp.truckNumber,
+                  })
+                }
+                onDelete={setDeleteEmployeeTarget}
+              />
             )}
             {activeTab === "epi" && epiLoadError && (
               <div
@@ -3223,6 +3311,56 @@ export function DashboardPage() {
         }}
         onError={() => {
           showToast(`❌ ${t("admin.page.toasts.employeeAddFailed")}`);
+        }}
+      />
+
+      <EditEmployeeModal
+        open={editingEmployee != null}
+        employee={editingEmployee}
+        onClose={() => setEditingEmployee(null)}
+        onSuccess={() => {
+          void refetchEmployees();
+          showToast(`✅ ${t("admin.employees.updated")}`);
+        }}
+        onError={(msg) => showToast(`❌ ${msg}`)}
+      />
+
+      <ConfirmDeleteModal
+        open={deleteEmployeeTarget != null}
+        title={t("admin.employees.deleteModalTitle")}
+        message={
+          deleteEmployeeTarget
+            ? t("admin.employees.deleteModalMessage", { name: deleteEmployeeTarget.name })
+            : ""
+        }
+        cancelLabel={t("common.cancel")}
+        confirmLabel={t("admin.employees.deleteConfirmBtn")}
+        loading={deleteEmployeeLoading}
+        onCancel={() => {
+          if (!deleteEmployeeLoading) setDeleteEmployeeTarget(null);
+        }}
+        onConfirm={() => {
+          if (!deleteEmployeeTarget || deleteEmployeeLoading) return;
+          void (async () => {
+            setDeleteEmployeeLoading(true);
+            try {
+              await adminApi.deleteEmployee(deleteEmployeeTarget.id);
+              setDeleteEmployeeTarget(null);
+              if (selectedEmployee?.id === deleteEmployeeTarget.id) {
+                setSelectedEmployee(null);
+              }
+              await refetchEmployees();
+              showToast(`✅ ${t("admin.epiManage.employeeDeleted")}`);
+            } catch (e: unknown) {
+              const msg =
+                isAxiosError(e) && e.response?.data?.error
+                  ? String(e.response.data.error)
+                  : t("admin.epiManage.employeeDeleteFailed");
+              showToast(`❌ ${msg}`);
+            } finally {
+              setDeleteEmployeeLoading(false);
+            }
+          })();
         }}
       />
 

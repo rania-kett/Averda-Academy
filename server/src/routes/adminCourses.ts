@@ -14,6 +14,7 @@ import {
 } from "../services/claudeQuiz.js";
 import { extractTextFromPdfFile, getPdfPageCount } from "../utils/pdfExtract.js";
 import { extractRawTextFromPdfBuffer } from "../utils/pdfRawText.js";
+import { isLessonQuizCourse } from "../data/courseVisibility.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -124,6 +125,8 @@ router.get("/", async (_req, res, next) => {
         });
         const rate =
           totalUsers > 0 ? Math.round((completed / totalUsers) * 100) : 0;
+        const hasLessonQuiz = isLessonQuizCourse(c.slug, c.title, c.pdfUrl);
+        const hasDbQuiz = Boolean(c.quiz);
         return {
           id: c.id,
           slug: c.slug,
@@ -140,6 +143,8 @@ router.get("/", async (_req, res, next) => {
           quiz: c.quiz
             ? { id: c.quiz.id, questionCount: Array.isArray(c.quiz.questions) ? (c.quiz.questions as unknown[]).length : 0 }
             : null,
+          hasLessonQuiz,
+          hasQuiz: hasDbQuiz || hasLessonQuiz,
           completionRate: rate,
           updatedAt: c.updatedAt,
         };

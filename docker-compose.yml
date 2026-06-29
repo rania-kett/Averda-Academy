@@ -1,0 +1,26 @@
+name: averda_academy
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: averda_academy_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: averda_academy
+    ports:
+      - "5434:5432"
+    volumes:
+      - averda_academy_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d averda_academy"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  averda_academy_pgdata:
+    name: averda_academy_pgdata
+    # Persistent — survives container restarts. Do NOT run: docker compose down -v

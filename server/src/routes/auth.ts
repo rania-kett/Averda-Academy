@@ -9,6 +9,7 @@ import {
   signAccessToken,
   signRefreshToken,
 } from "../utils/jwt.js";
+import { evaluateAllBadgesForUser } from "../services/badgeService.js";
 
 const router = Router();
 
@@ -43,6 +44,7 @@ router.post(
       }
       const ok = await comparePin(pin, user.pin);
       if (!ok) throw new AppError(401, "Invalid credentials");
+      void evaluateAllBadgesForUser(user.id).catch(() => {});
       const access = signAccessToken({ sub: user.id, role: "EMPLOYEE" });
       const refresh = signRefreshToken({ sub: user.id, role: "EMPLOYEE" });
       res.json({

@@ -1,0 +1,55 @@
+# Production stack: Postgres + API (serves built React app on PORT).
+# Usage:
+#   cp .env.production.example .env
+#   # edit .env — set secrets and CLIENT_URL
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+name: averda_academy_prod
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: averda_academy_db_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-averda_academy}
+    volumes:
+      - averda_academy_pgdata_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-averda_academy}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: averda_academy_app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3011}:3011"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env}
+      SETTINGS_SECRET: ${SETTINGS_SECRET:?Set SETTINGS_SECRET in .env}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:3011}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      RUN_SEED: ${RUN_SEED:-false}
+    volumes:
+      - averda_academy_uploads_prod:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  averda_academy_pgdata_prod:
+    name: averda_academy_pgdata_prod
+  averda_academy_uploads_prod:
+    name: averda_academy_uploads_prod

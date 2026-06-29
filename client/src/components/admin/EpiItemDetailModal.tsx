@@ -1,6 +1,8 @@
 import { useMemo, useState, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Briefcase, X } from "lucide-react";
+import { Briefcase, Pencil, Trash2, X } from "lucide-react";
+import { adminApi } from "@/api/api";
+import { useToast } from "@/context/ToastContext";
 import { CATEGORIES, type CategoryKey } from "@/config/categories";
 import type { DashboardEpiEmployee, DashboardEpiItem } from "@/utils/mapEpiSummaryToDashboard";
 import { getDaysUntilExpiry, getExpiryDate } from "@/utils/epiExpiry";
@@ -19,7 +21,17 @@ type Props = {
   selection: Selection | null;
   onClose: () => void;
   onIssueRenewal: (employee: DashboardEpiEmployee, itemCode: string) => void;
+  onMutated?: () => void;
 };
+
+const EPI_SERVER_STATUSES = ["issued", "received", "replaced", "expired", "pending_renewal"] as const;
+
+function toDateInputValue(iso: string | undefined | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
 
 function roleAvatarFromLabel(roleLabel: string) {
   for (const key of Object.keys(CATEGORIES) as CategoryKey[]) {
@@ -58,11 +70,31 @@ function sectionCard(title: string, children: ReactNode) {
   );
 }
 
-export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props) {
+export function EpiItemDetailModal({ selection, onClose, onIssueRenewal, onMutated }: Props) {
   const { t, i18n } = useTranslation();
+  const toast = useToast();
   const { locale, nameOf, roleOf, epiOf } = useDashboardI18n();
   const isRTL = resolveCurrentLng(i18n.language) === "ar";
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [editStatus, setEditStatus] = useState("issued");
+  const [editSize, setEditSize] = useState("");
+  const [editIssuedAt, setEditIssuedAt] = useState("");
+  const [editNextReplacementAt, setEditNextReplacementAt] = useState("");
+
+  useEffect(() => {
+    if (!selection?.item) return;
+    const { item } = selection;
+    setEditing(false);
+    setEditStatus(item.serverStatus && EPI_SERVER_STATUSES.includes(item.serverStatus as (typeof EPI_SERVER_STATUSES)[number])
+      ? item.serverStatus
+      : "issued");
+    setEditSize(item.size ?? "");
+    setEditIssuedAt(toDateInputValue(item.lastIssued));
+    setEditNextReplacementAt(toDateInputValue(item.nextReplacementAt));
+  }, [selection]);
 
   const formatDate = (iso: string | undefined | null) => {
     if (!iso) return "—";
@@ -99,6 +131,7 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
   if (!selection || !detail) return null;
 
   const { item, employee, visualStatus, expiry, daysLeft, expiryTint, photoUrl } = detail;
+  const canMutate = Boolean(item.issuanceId);
   const statusLabel = epiDisplayStatusLabel(t, visualStatus);
   const statusMeta = getDisplayStatus({
     status: item.status,
@@ -124,6 +157,43 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
         ? t("admin.page.epi.itemDetail.daysExpired", { n: Math.abs(daysLeft) })
         : t("admin.page.epi.itemDetail.daysLeft", { n: daysLeft })
       : "—";
+
+  const saveIssuance = async () => {
+    if (!item.issuanceId) return;
+    setSaving(true);
+    try {
+      await adminApi.updateEpiIssuance(item.issuanceId, {
+        status: editStatus,
+        size: editSize.trim() || null,
+        issuedAt: editIssuedAt ? new Date(editIssuedAt).toISOString() : undefined,
+        nextReplacementAt: editNextReplacementAt ? new Date(editNextReplacementAt).toISOString() : null,
+      });
+      toast(t("admin.epiManage.issuanceSaved"), "success");
+      setEditing(false);
+      onMutated?.();
+      onClose();
+    } catch {
+      toast(t("admin.epiManage.issuanceSaveFailed"), "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteIssuance = async () => {
+    if (!item.issuanceId) return;
+    if (!window.confirm(t("admin.epiManage.deleteIssuanceConfirm"))) return;
+    setDeleting(true);
+    try {
+      await adminApi.deleteEpiIssuance(item.issuanceId);
+      toast(t("admin.epiManage.issuanceDeleted"), "success");
+      onMutated?.();
+      onClose();
+    } catch {
+      toast(t("admin.epiManage.issuanceDeleteFailed"), "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <>
@@ -274,7 +344,92 @@ export function EpiItemDetailModal({ selection, onClose, onIssueRenewal }: Props
             )}
           </div>
 
-          <div className="border-t border-[#E7E5E4] px-5 py-4 dark:border-[#30363D]">
+          <div className="border-t border-[#E7E5E4] px-5 py-4 dark:border-[#30363D] space-y-3">
+            {canMutate && editing ? (
+              <div className="space-y-3 rounded-xl border border-[#E7E5E4] bg-[#FAFAF9] p-4 dark:border-[#30363D] dark:bg-[#161B22]">
+                <label className="block text-[12px] font-bold text-[#374151] dark:text-stone-300">
+                  {t("common.status")}
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-[#E7E5E4] bg-white px-3 py-2 text-[13px] font-semibold dark:border-[#30363D] dark:bg-[#0D1117] dark:text-white"
+                  >
+                    {EPI_SERVER_STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {t(`employee.epi.status.${s === "pending_renewal" ? "issued" : s}`, { defaultValue: s })}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-[12px] font-bold text-[#374151] dark:text-stone-300">
+                  {t("admin.page.epi.itemDetail.size", { defaultValue: "Size" })}
+                  <input
+                    value={editSize}
+                    onChange={(e) => setEditSize(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-[#E7E5E4] bg-white px-3 py-2 text-[13px] font-semibold dark:border-[#30363D] dark:bg-[#0D1117] dark:text-white"
+                  />
+                </label>
+                <label className="block text-[12px] font-bold text-[#374151] dark:text-stone-300">
+                  {t("admin.page.epi.itemDetail.issueDate")}
+                  <input
+                    type="date"
+                    value={editIssuedAt}
+                    onChange={(e) => setEditIssuedAt(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-[#E7E5E4] bg-white px-3 py-2 text-[13px] font-semibold dark:border-[#30363D] dark:bg-[#0D1117] dark:text-white"
+                  />
+                </label>
+                <label className="block text-[12px] font-bold text-[#374151] dark:text-stone-300">
+                  {t("admin.page.epi.itemDetail.expiryDate")}
+                  <input
+                    type="date"
+                    value={editNextReplacementAt}
+                    onChange={(e) => setEditNextReplacementAt(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-[#E7E5E4] bg-white px-3 py-2 text-[13px] font-semibold dark:border-[#30363D] dark:bg-[#0D1117] dark:text-white"
+                  />
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void saveIssuance()}
+                    disabled={saving || deleting}
+                    className="flex-1 rounded-xl bg-[#1e3a5f] px-4 py-2.5 text-[13px] font-extrabold text-white disabled:opacity-50"
+                  >
+                    {saving ? t("common.saving") : t("admin.epiManage.saveIssuance")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(false)}
+                    disabled={saving || deleting}
+                    className="rounded-xl border border-[#E7E5E4] px-4 py-2.5 text-[13px] font-bold dark:border-[#30363D]"
+                  >
+                    {t("common.cancel")}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {canMutate && !editing ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#E7E5E4] px-4 py-2.5 text-[13px] font-bold transition hover:bg-[#FAFAF9] dark:border-[#30363D] dark:hover:bg-white/5"
+                >
+                  <Pencil className="h-4 w-4" aria-hidden />
+                  {t("admin.epiManage.editIssuance")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void deleteIssuance()}
+                  disabled={deleting}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-300 px-4 py-2.5 text-[13px] font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-500/10"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                  {t("admin.epiManage.deleteIssuance")}
+                </button>
+              </div>
+            ) : null}
+
             {showRenewalAction ? (
               <button
                 type="button"

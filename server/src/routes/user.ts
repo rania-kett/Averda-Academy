@@ -14,8 +14,10 @@ import {
 } from "../utils/employeeCourseProgress.js";
 import { isCategoryWithoutCoursesYet } from "../utils/adminCourseVisibility.js";
 import { NEW_BADGES, NEW_BADGE_KEYS } from "../services/badgeCatalog.js";
-import { evaluateBadgesAfterLessonComplete } from "../services/badgeService.js";
+import { evaluateAllBadgesForUser } from "../services/badgeService.js";
+import { filterVisibleEmployeeNotifications } from "../utils/employeeNotificationFilters.js";
 import { issueEmployeeCertificate, sendCertificatePdf, buildCertificateDownloadName } from "../services/certificateService.js";
+import { comparePin, hashPin } from "../utils/hash.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -49,12 +51,15 @@ router.get("/me", async (req, res, next) => {
     }
 
     // Ensure canonical badge catalog exists and compute any missing automatic badges (idempotent).
+    let earnedBadges = user.badges ?? [];
     try {
-      await evaluateBadgesAfterLessonComplete({
-        userId,
-        courseId: "",
-        timeSpentSecs: 0,
-        completionPct: 0,
+      await evaluateAllBadgesForUser(userId);
+      earnedBadges = await prisma.userBadge.findMany({
+        where: {
+          userId,
+          badge: { key: { in: Object.values(NEW_BADGE_KEYS) } },
+        },
+        include: { badge: true },
       });
     } catch {
       /* ignore badge eval errors */
@@ -118,9 +123,7 @@ router.get("/me", async (req, res, next) => {
         category: user.category,
         language: user.language,
         avatarColor: user.avatarColor,
-        badges: (user.badges ?? []).filter((ub) =>
-          Object.values(NEW_BADGE_KEYS).includes(ub.badge.key as any)
-        ),
+        badges: earnedBadges,
         certificates: user.certificates,
         assessmentCompleted: user.assessmentCompleted,
         assessmentScore: user.assessmentScore,
@@ -217,6 +220,41 @@ router.patch(
   }
 );
 
+router.post(
+  "/me/change-pin",
+  body("currentPin").isLength({ min: 4, max: 4 }).isNumeric(),
+  body("newPin").isLength({ min: 4, max: 4 }).isNumeric(),
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ error: "Validation failed", details: errors.array() });
+        return;
+      }
+      const { userId, role } = (req as AuthedRequest).user;
+      if (role !== "EMPLOYEE") throw new AppError(403, "Forbidden");
+      const { currentPin, newPin } = req.body as { currentPin: string; newPin: string };
+      if (currentPin === newPin) {
+        throw new AppError(400, "New PIN must be different from current PIN");
+      }
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { pin: true },
+      });
+      if (!user) throw new AppError(404, "User not found");
+      const valid = await comparePin(currentPin, user.pin);
+      if (!valid) throw new AppError(401, "Invalid current PIN");
+      await prisma.user.update({
+        where: { id: userId },
+        data: { pin: await hashPin(newPin) },
+      });
+      res.json({ ok: true });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
 router.get("/notifications", async (req, res, next) => {
   try {
     const { userId, role } = (req as AuthedRequest).user;
@@ -224,9 +262,9 @@ router.get("/notifications", async (req, res, next) => {
     const rows = await prisma.notification.findMany({
       where: { userId },
       orderBy: [{ isRead: "asc" }, { createdAt: "desc" }],
-      take: 50,
+      take: 100,
     });
-    res.json({ notifications: rows });
+    res.json({ notifications: filterVisibleEmployeeNotifications(rows).slice(0, 50) });
   } catch (e) {
     next(e);
   }
@@ -274,12 +312,7 @@ router.get("/badges", async (req, res, next) => {
     const { userId } = (req as AuthedRequest).user;
     // Ensure automatic badges are up-to-date before returning the list.
     try {
-      await evaluateBadgesAfterLessonComplete({
-        userId,
-        courseId: "",
-        timeSpentSecs: 0,
-        completionPct: 0,
-      });
+      await evaluateAllBadgesForUser(userId);
     } catch {
       /* ignore */
     }

@@ -1,13 +1,9 @@
 import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
+import { userApi } from "@/api/api";
 import AverdaLogoUrl from "@/assets/averda_logo.png";
 import {
   buildCertificateHtml,
   buildCertificateId,
-  CERTIFICATE_CSS,
-  CERTIFICATE_STYLE_ELEMENT_ID,
-  CERT_HEIGHT_PX,
-  CERT_WIDTH_PX,
   getCertificateCopyForRaster,
   injectCertificateStyles,
   resolveCertificateLocale,
@@ -27,7 +23,7 @@ export type EmployeeCertificateInput = {
 };
 
 const FONT_HREF =
-  "https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Great+Vibes&family=Inter:wght@400;700;800&family=Noto+Sans+Arabic:wght@400;600;700&family=Playfair+Display:wght@400&display=swap";
+  "https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@500;600;700&family=Great+Vibes&family=Inter:wght@400;700;800&family=Noto+Sans+Arabic:wght@400;600;700&family=Playfair+Display:wght@400&family=Reem+Kufi:wght@500;700&display=swap";
 
 const FONT_LINK_ID = "averda-certificate-fonts";
 
@@ -48,25 +44,6 @@ async function imageUrlToDataUrl(url: string): Promise<string | null> {
   }
 }
 
-async function waitForImages(root: HTMLElement): Promise<void> {
-  const imgs = Array.from(root.querySelectorAll("img"));
-  await Promise.all(
-    imgs.map(
-      (img) =>
-        new Promise<void>((resolve) => {
-          const done = () => resolve();
-          if (img.complete && img.naturalWidth > 0) {
-            done();
-            return;
-          }
-          img.onload = done;
-          img.onerror = done;
-          if (img.decode) void img.decode().then(done).catch(done);
-        })
-    )
-  );
-}
-
 async function ensureCertificateFonts(): Promise<void> {
   if (!document.getElementById(FONT_LINK_ID)) {
     const link = document.createElement("link");
@@ -83,75 +60,17 @@ async function ensureCertificateFonts(): Promise<void> {
   const fonts = document.fonts;
   if (!fonts?.load) return;
   await Promise.all([
-    fonts.load('700 100px "Amiri"'),
-    fonts.load('700 48px "Amiri"'),
-    fonts.load('400 14px "Noto Sans Arabic"'),
-    fonts.load('600 15px "Noto Sans Arabic"'),
+    fonts.load('700 51px "Amiri"'),
+    fonts.load('700 56px "Amiri"'),
+    fonts.load('600 19px "Cairo"'),
+    fonts.load('400 17px "Cairo"'),
+    fonts.load('700 22px "Amiri"'),
     fonts.load('400 50px "Great Vibes"'),
     fonts.load('400 13px "Playfair Display"'),
-    fonts.load('800 100px "Inter"'),
+    fonts.load('800 46px "Inter"'),
   ]).catch(() => undefined);
   if (fonts.ready) await fonts.ready;
   await new Promise((r) => setTimeout(r, 800));
-}
-
-function forceLightModeOnClone(clonedDoc: Document): void {
-  clonedDoc.documentElement.classList.remove("dark");
-  clonedDoc.documentElement.style.background = "#ffffff";
-  clonedDoc.body.style.background = "#ffffff";
-  clonedDoc.body.style.color = "#111111";
-
-  if (!clonedDoc.getElementById(CERTIFICATE_STYLE_ELEMENT_ID)) {
-    const style = clonedDoc.createElement("style");
-    style.id = CERTIFICATE_STYLE_ELEMENT_ID;
-    style.textContent = CERTIFICATE_CSS;
-    clonedDoc.head.appendChild(style);
-  }
-  if (!clonedDoc.getElementById(FONT_LINK_ID)) {
-    const link = clonedDoc.createElement("link");
-    link.id = FONT_LINK_ID;
-    link.rel = "stylesheet";
-    link.href = FONT_HREF;
-    clonedDoc.head.appendChild(link);
-  }
-}
-
-function mountCertificateElement(html: string): { host: HTMLDivElement; root: HTMLElement } {
-  const host = document.createElement("div");
-  host.setAttribute("data-certificate-export", "true");
-  host.style.cssText = [
-    "position:fixed",
-    "left:-9999px",
-    "top:0",
-    `width:${CERT_WIDTH_PX}px`,
-    `height:${CERT_HEIGHT_PX}px`,
-    "overflow:visible",
-    "background:#ffffff",
-    "z-index:-1",
-  ].join(";");
-
-  host.innerHTML = html;
-  document.body.appendChild(host);
-
-  const root = host.querySelector(".cert-root") as HTMLElement | null;
-  if (!root) {
-    host.remove();
-    throw new Error("Certificate template failed to mount");
-  }
-  return { host, root };
-}
-
-async function captureCertificate(root: HTMLElement): Promise<HTMLCanvasElement> {
-  return html2canvas(root, {
-    backgroundColor: "#ffffff",
-    scale: 2.5,
-    width: CERT_WIDTH_PX,
-    height: CERT_HEIGHT_PX,
-    useCORS: true,
-    allowTaint: true,
-    logging: false,
-    onclone: forceLightModeOnClone,
-  });
 }
 
 async function buildTemplateData(
@@ -177,30 +96,17 @@ async function buildTemplateData(
   return base;
 }
 
+/** @deprecated Use userApi.certificate() / adminApi.certificate() — server Puppeteer PDF only. */
 export async function generateCertificate(employee: EmployeeCertificateInput): Promise<jsPDF> {
-  injectCertificateStyles();
-  await ensureCertificateFonts();
-
-  const watermarkDataUrl = await imageUrlToDataUrl(AverdaLogoUrl);
-  const templateData = await buildTemplateData(employee, watermarkDataUrl);
-  const html = buildCertificateHtml(templateData);
-  const { host, root } = mountCertificateElement(html);
-
-  try {
-    await waitForImages(root);
-    await new Promise((r) => setTimeout(r, 400));
-
-    const canvas = await captureCertificate(root);
-    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4", compress: true });
-
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    const img = canvas.toDataURL("image/png");
-    doc.addImage(img, "PNG", 0, 0, pageW, pageH, undefined, "FAST");
-    return doc;
-  } finally {
-    host.remove();
-  }
+  const { data } = await userApi.certificate();
+  const blob = data as Blob;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `certificate-${(employee.name || "employee").replace(/[\\/:*?"<>|]/g, "-")}-averda.pdf`;
+  link.click();
+  URL.revokeObjectURL(url);
+  throw new Error("Certificate downloaded via server API. jsPDF instance not returned.");
 }
 
 export async function buildCertificatePreviewHtml(employee: EmployeeCertificateInput): Promise<string> {

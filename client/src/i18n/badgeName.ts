@@ -25,3 +25,13 @@ export function translatedEmployeeBadgeName(
   if (translated !== k) return translated;
   return fallbackTitleFromApi(badge.title, lang, badge.key);
 }
+
+/** Human-readable list of newly earned badge keys for toasts and banners. */
+export function formatNewBadgeLabels(
+  keys: string[],
+  t: TFunction,
+  lang: EmployeeBadgeLang
+): string {
+  const sep = lang === "ar" ? "، " : ", ";
+  return keys.map((key) => translatedEmployeeBadgeName({ key, title: {} }, t, lang)).join(sep);
+}

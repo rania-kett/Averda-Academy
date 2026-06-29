@@ -19,6 +19,8 @@ model User {
   avatarColor   String
   language      Lang          @default(AR)
   isActive      Boolean       @default(true)
+  /** Only used for driver category */
+  truckNumber   String?
   createdAt     DateTime      @default(now())
 
   /** One-time HSSEQ baseline quiz completed */

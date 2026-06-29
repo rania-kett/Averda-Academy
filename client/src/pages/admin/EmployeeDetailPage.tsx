@@ -1,20 +1,26 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { isAxiosError } from "axios";
+import { Pencil } from "lucide-react";
 import { adminApi } from "@/api/api";
-import { generateCertificate } from "@/utils/generateCertificate";
-import { resolveCertificateLocale } from "@/utils/certificateTemplate";
 import { useToast } from "@/context/ToastContext";
 import { AdminBackButton } from "@/components/admin/AdminBackButton";
+import { ConfirmDeleteModal } from "@/components/admin/ConfirmDeleteModal";
+import { EditEmployeeModal, type EditEmployeeTarget } from "@/components/admin/EditEmployeeModal";
 import { RoleAvatar, roleAvatarKindFromCategoryCode } from "@/components/employee/ui/RoleAvatar";
 import { adminCardPadded, adminMuted, adminTableWrap } from "@/components/admin/adminClasses";
 import { AdminCategoryBadge } from "@/components/admin/AdminCategoryBadge";
 
 type Emp = {
+  id?: string;
   name: string;
   employeeId: string;
   category?: { id: string; code: string; name: { fr?: string; en?: string; ar?: string } } | null;
+  categoryId?: string | null;
+  truckNumber?: string | null;
+  isActive?: boolean;
   language: string;
   avatarColor: string;
   createdAt: string;
@@ -45,12 +51,22 @@ type AdminCourse = {
 
 export function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const toast = useToast();
   const [emp, setEmp] = useState<Emp | null>(null);
   const [courses, setCourses] = useState<AdminCourse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<EditEmployeeTarget | null>(null);
   const lang = i18n.language.startsWith("ar") ? "ar" : i18n.language.startsWith("fr") ? "fr" : "en";
+
+  const reloadEmployee = async () => {
+    if (!id) return;
+    const { data } = await adminApi.employee(id);
+    setEmp((data as { employee: Emp }).employee);
+  };
 
   const attemptRows = useMemo(() => {
     if (!emp) return [];
@@ -111,33 +127,19 @@ export function EmployeeDetailPage() {
   }, [emp, courses]);
 
   const downloadCert = async () => {
-    if (!emp || !certificateEligible) return;
+    if (!emp || !certificateEligible || !id) return;
     try {
-      const scores = [
-        ...(emp.attempts ?? []).map((a) => a.score),
-        ...(emp.lessonQuizAttempts ?? []).map((a) => a.percentage),
-      ];
-      const avgScore =
-        scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-      const empLang = resolveCertificateLocale(emp.language);
-      const roleName =
-        (emp.category?.name as Record<string, string> | undefined)?.[empLang] ??
-        emp.category?.code ??
-        "employee";
-      const programTitle =
-        (emp.progress[0]?.course?.title as Record<string, string> | undefined)?.[empLang] ??
-        (emp.progress[0]?.course?.title as Record<string, string> | undefined)?.en ??
-        "";
-      const doc = await generateCertificate({
-        name: emp.name,
-        role: roleName,
-        programName: programTitle,
-        avgScore,
-        completionDate: new Date().toISOString(),
-        locale: empLang,
-      });
-      const fileName = `certificate-${emp.name.replace(/[\\/:*?"<>|]/g, "-")}-averda.pdf`;
-      doc.save(fileName);
+      const { data } = await adminApi.certificate(id);
+      const fileName = `certificate-${emp.name.replace(/[\\/:*?"<>|]/g, "-").trim()}-averda.pdf`;
+      const url = URL.createObjectURL(data as Blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast(t("common.saved"), "success");
     } catch {
       toast(t("common.error"), "error");
@@ -156,11 +158,31 @@ export function EmployeeDetailPage() {
     }
   };
 
+  const removeEmployee = async () => {
+    if (!id || deleteLoading) return;
+    setDeleteLoading(true);
+    try {
+      await adminApi.deleteEmployee(id);
+      toast(t("admin.epiManage.employeeDeleted"), "success");
+      navigate("/admin");
+    } catch (e: unknown) {
+      const msg =
+        isAxiosError(e) && e.response?.data?.error
+          ? String(e.response.data.error)
+          : t("admin.epiManage.employeeDeleteFailed");
+      toast(msg, "error");
+    } finally {
+      setDeleteLoading(false);
+      setDeleteOpen(false);
+    }
+  };
+
   if (loading || !emp) {
     return <div className="h-64 animate-pulse rounded-xl bg-slate-200 dark:bg-[#161B22]" />;
   }
 
   const e = emp;
+  const isDriver = e.category?.code === "driver";
 
   return (
     <div className="space-y-8">
@@ -186,10 +208,35 @@ export function EmployeeDetailPage() {
           <p className={`text-sm ${adminMuted}`}>
             {t("admin.employees.langPref")}: {t(`langNames.${e.language}`, { defaultValue: e.language })}
           </p>
+          {isDriver && (
+            <p className={`text-sm ${adminMuted}`}>
+              {t("admin.employees.truckNumber")}:{" "}
+              <span className="font-semibold text-[#0F172A] dark:text-slate-100">
+                {e.truckNumber?.trim() || t("admin.employees.truckNotAssigned")}
+              </span>
+            </p>
+          )}
         </div>
       </div>
 
       <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={() =>
+            setEditingEmployee({
+              id: id!,
+              name: e.name,
+              categoryId: e.categoryId ?? e.category?.id,
+              categoryCode: e.category?.code ?? null,
+              isActive: e.isActive,
+              truckNumber: e.truckNumber,
+            })
+          }
+          className="inline-flex items-center gap-2 rounded-lg border border-[#E5E7EB] px-4 py-3 font-semibold dark:border-[#30363D]"
+        >
+          <Pencil size={16} />
+          {t("admin.employees.edit")}
+        </button>
         <button
           type="button"
           disabled={!certificateEligible}
@@ -206,7 +253,38 @@ export function EmployeeDetailPage() {
         >
           {t("admin.employees.reset")}
         </button>
+        <button
+          type="button"
+          onClick={() => setDeleteOpen(true)}
+          className="rounded-lg border border-red-600 bg-red-600/10 px-4 py-3 font-semibold text-red-500 transition hover:bg-red-600/20"
+        >
+          {t("admin.employees.delete")}
+        </button>
       </div>
+
+      <EditEmployeeModal
+        open={editingEmployee != null}
+        employee={editingEmployee}
+        onClose={() => setEditingEmployee(null)}
+        onSuccess={() => {
+          void reloadEmployee();
+          toast(t("admin.employees.updated"), "success");
+        }}
+        onError={(msg) => toast(msg, "error")}
+      />
+
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        title={t("admin.employees.deleteModalTitle")}
+        message={t("admin.employees.deleteModalMessage", { name: e.name })}
+        cancelLabel={t("common.cancel")}
+        confirmLabel={t("admin.employees.deleteConfirmBtn")}
+        loading={deleteLoading}
+        onCancel={() => {
+          if (!deleteLoading) setDeleteOpen(false);
+        }}
+        onConfirm={() => void removeEmployee()}
+      />
 
       <section>
         <h2 className="mb-4 text-lg font-semibold">{t("admin.employees.progressSec")}</h2>

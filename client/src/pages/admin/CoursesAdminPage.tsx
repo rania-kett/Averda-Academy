@@ -5,6 +5,7 @@ import { adminApi } from "@/api/api";
 import { useToast } from "@/context/ToastContext";
 import { adminMuted } from "@/components/admin/adminClasses";
 import { CATEGORY_ORDER, categoryKeyFromCode, getCategoryDefByCode, type CategoryKey } from "@/config/categories";
+import { CourseCustomEmojiInput } from "@/components/admin/CourseCustomEmojiInput";
 import { getColorFromEmoji } from "@/utils/getColorFromEmoji";
 
 type CoverColorMode = "auto" | "custom";
@@ -837,21 +838,18 @@ export function CoursesAdminPage() {
                     );
                   })}
                 </div>
-                <div className="mt-3">
-                  <div className="mb-1 text-[11px] font-extrabold opacity-75">إيموجي آخر (لصق حرف واحد)</div>
-                  <input
-                    value={iconChoice}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      const g = v.length ? [...v].pop() ?? v : "";
-                      setIconChoice(g || "📘");
-                      if (coverColorMode === "auto" && g) setCoverColor(normalizeHex(getColorFromEmoji(g)));
-                    }}
-                    placeholder="🚦"
-                    maxLength={8}
-                    className="w-full max-w-xs rounded-lg border border-admin-border bg-white px-3 py-2 text-2xl leading-none dark:bg-[#0D1117]"
-                  />
-                </div>
+                <CourseCustomEmojiInput
+                  className="mt-3"
+                  value={iconChoice}
+                  onChange={(emoji) => {
+                    setIconChoice(emoji);
+                    if (coverColorMode === "auto") {
+                      setCoverColor(normalizeHex(getColorFromEmoji(emoji)));
+                    }
+                  }}
+                  label={t("admin.courses.formModal.customEmoji")}
+                  hint={t("admin.courses.formModal.customEmojiHint")}
+                />
               </div>
             </div>
 

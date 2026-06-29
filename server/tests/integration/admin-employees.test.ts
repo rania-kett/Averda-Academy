@@ -142,6 +142,104 @@ describe("admin employees integration", () => {
     });
   });
 
+  describe("DELETE /api/admin/employees/:id", () => {
+    it("deletes employee and all related data → 200", async () => {
+      const unique = `DEL-${Date.now()}`;
+      const createRes = await request(app)
+        .post("/api/admin/employees")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          employeeId: unique,
+          name: "Test Delete",
+          categoryId: driverCategoryId,
+          pin: "9999",
+        });
+      expect(createRes.status).toBe(201);
+      const empId = createRes.body.user.id;
+
+      const res = await request(app)
+        .delete(`/api/admin/employees/${empId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const check = await request(app)
+        .get(`/api/admin/employees/${empId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(check.status).toBe(404);
+    });
+
+    it("cannot delete ADMIN user → 403", async () => {
+      const adminUser = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+      expect(adminUser).toBeTruthy();
+      const res = await request(app)
+        .delete(`/api/admin/employees/${adminUser!.id}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(403);
+    });
+
+    it("no token → 401", async () => {
+      const res = await request(app).delete("/api/admin/employees/fake-id");
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe("PATCH /api/admin/employees/:id", () => {
+    it("updates employee name → 200", async () => {
+      const unique = `PATCH-${Date.now()}`;
+      const createRes = await request(app)
+        .post("/api/admin/employees")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          employeeId: unique,
+          name: "Patch Me",
+          categoryId: driverCategoryId,
+          pin: "4321",
+        });
+      const empId = createRes.body.user.id;
+
+      const res = await request(app)
+        .patch(`/api/admin/employees/${empId}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ name: "Patched Name" });
+      expect(res.status).toBe(200);
+      expect(res.body.name).toBe("Patched Name");
+
+      await prisma.user.deleteMany({ where: { employeeId: unique } });
+    });
+
+    it("updates truckNumber for driver → 200", async () => {
+      const unique = `TRK-${Date.now()}`;
+      const createRes = await request(app)
+        .post("/api/admin/employees")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          employeeId: unique,
+          name: "Driver Truck",
+          categoryId: driverCategoryId,
+          pin: "4321",
+        });
+      const empId = createRes.body.user.id;
+
+      const res = await request(app)
+        .patch(`/api/admin/employees/${empId}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ truckNumber: "TRK-042" });
+      expect(res.status).toBe(200);
+      expect(res.body.truckNumber).toBe("TRK-042");
+
+      await prisma.user.deleteMany({ where: { employeeId: unique } });
+    });
+
+    it("invalid categoryId → 404", async () => {
+      const res = await request(app)
+        .patch(`/api/admin/employees/${av001Id}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ categoryId: "clxxxxxxxxxxxxxxxx" });
+      expect(res.status).toBe(404);
+    });
+  });
+
   describe("POST reset-progress and deactivate", () => {
     it("reset progress → assessment cleared", async () => {
       const res = await request(app)

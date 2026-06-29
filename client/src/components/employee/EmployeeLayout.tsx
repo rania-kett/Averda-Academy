@@ -8,6 +8,7 @@ import { useToast } from "@/context/ToastContext";
 import AverdaLogo from "@/assets/averda_logo.png";
 import { persistAppLanguage as persistLang, resolveCurrentLng } from "@/i18n/persistLanguage";
 import { userApi } from "@/api/api";
+import { filterVisibleEmployeeNotifications } from "@/utils/employeeNotifications";
 import { getNotifStyle, inferNotifType } from "@/utils/notificationStyle";
 import {
   dispatchFocusAssessmentQuiz,
@@ -337,7 +338,7 @@ export function EmployeeLayout() {
       setNotifLoading(true);
       const { data } = await userApi.notifications();
       const rows = (data as { notifications: typeof notifications }).notifications;
-      setNotifications(rows);
+      setNotifications(filterVisibleEmployeeNotifications(rows));
     } finally {
       setNotifLoading(false);
     }
@@ -427,7 +428,7 @@ export function EmployeeLayout() {
       try {
         const { data } = await userApi.notifications();
         const rows = (data as { notifications: typeof notifications }).notifications;
-        if (alive) setNotifications(rows);
+        if (alive) setNotifications(filterVisibleEmployeeNotifications(rows));
       } catch {
         // non-blocking
       }
@@ -547,7 +548,7 @@ export function EmployeeLayout() {
         try {
           const { data } = await userApi.notifications();
           const rows = (data as { notifications: typeof notifications }).notifications;
-          setNotifications(rows);
+          setNotifications(filterVisibleEmployeeNotifications(rows));
         } catch {
           /* keep current list */
         }

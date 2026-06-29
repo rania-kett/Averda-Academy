@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
-import { EPI_PRESEED_REPLACEMENT_REQUESTS, EPI_SEED_EMPLOYEES } from "../../../client/src/data/epiSeed.js";
+import { EPI_PRESEED_REPLACEMENT_REQUESTS, EPI_SEED_EMPLOYEES } from "../data/epiEmployeeSeed.js";
 
 type SeedDb = Pick<PrismaClient, "user" | "epiProfile" | "epiIssuance" | "epiReceptionConfirmation" | "epiReplacementRequest">;
 

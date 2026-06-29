@@ -1,9 +1,11 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AxiosError } from "axios";
+import { useTranslation } from "react-i18next";
 import { lessonQuizApi, type LessonQuizKey, type LessonQuizQuestionClient } from "@/api/api";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
+import { formatNewBadgeLabels, type EmployeeBadgeLang } from "@/i18n/badgeName";
 import { X } from "lucide-react";
 import { SoundButton } from "@/components/SoundButton";
 import confetti from "canvas-confetti";
@@ -30,6 +32,12 @@ export function LessonQuiz({
   onSubmitted?: () => void;
   onContinue?: () => void;
 }) {
+  const { t, i18n } = useTranslation();
+  const badgeLang: EmployeeBadgeLang = i18n.language.startsWith("ar")
+    ? "ar"
+    : i18n.language.startsWith("fr")
+      ? "fr"
+      : "en";
   const toast = useToast();
   const { refreshMe } = useAuth();
   const onCloseRef = useRef(onClose);
@@ -213,7 +221,10 @@ export function LessonQuiz({
         setPhase("results");
         const newBadges = (raw.newBadges as string[] | undefined) ?? [];
         if (newBadges.length) {
-          toastRef.current(`🎉 Badge: ${newBadges.join(", ")}`, "success");
+          toastRef.current(
+            t("badge.earned", { names: formatNewBadgeLabels(newBadges, t, badgeLang) }),
+            "success"
+          );
         }
         void refreshMe();
         onSubmitted?.();

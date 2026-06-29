@@ -15,12 +15,18 @@ export const userApi = {
   badges: () => client.get("/api/user/badges"),
   updateMe: (body: { language?: "AR" | "FR" | "EN" }) =>
     client.patch("/api/user/me", body),
+  changePin: (body: { currentPin: string; newPin: string }) =>
+    client.post("/api/user/me/change-pin", body),
   notifications: () => client.get("/api/user/notifications"),
   readNotification: (id: string) =>
     client.put(`/api/user/notifications/${id}/read`),
   readAllNotifications: () => client.put("/api/user/notifications/read-all"),
   certificate: () =>
-    client.get("/api/user/certificate", { responseType: "blob", timeout: 120_000 }),
+    client.get(`/api/user/certificate?_=${Date.now()}`, {
+      responseType: "blob",
+      timeout: 120_000,
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    }),
 };
 
 export const coursesApi = {
@@ -166,20 +172,49 @@ export const adminApi = {
   deactivate: (id: string) => client.post(`/api/admin/employees/${id}/deactivate`),
   resetProgress: (id: string) =>
     client.post(`/api/admin/employees/${id}/reset-progress`),
+  deleteEmployee: (id: string) => client.delete(`/api/admin/employees/${id}`),
+  updateEmployee: (
+    id: string,
+    data: {
+      name?: string;
+      categoryId?: string;
+      pin?: string;
+      isActive?: boolean;
+      truckNumber?: string | null;
+    }
+  ) => client.patch(`/api/admin/employees/${id}`, data).then((r) => r.data),
   certificate: (id: string) =>
-    client.get(`/api/admin/employees/${id}/certificate`, {
+    client.get(`/api/admin/employees/${id}/certificate?_=${Date.now()}`, {
       responseType: "blob",
       timeout: 120_000,
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     }),
   epiOverview: (params?: Record<string, string>) =>
     client.get("/api/admin/epi/overview", { params }),
   epiDemoSeed: () => client.post("/api/admin/epi/demo-seed"),
   epiCatalog: () => client.get("/api/admin/epi/catalog"),
+  deleteEpiItem: (code: string, force?: boolean) =>
+    client
+      .delete(`/api/admin/epi/catalog/${encodeURIComponent(code)}`, {
+        params: force ? { force: "true" } : undefined,
+      })
+      .then((r) => r.data),
   epiCategoryDefaults: (categoryId: string) =>
     client.get(`/api/admin/epi/category-defaults/${categoryId}`),
   updateEpiCategoryDefaults: (categoryId: string, body: unknown) =>
     client.put(`/api/admin/epi/category-defaults/${categoryId}`, body),
   issueEpi: (body: unknown) => client.post("/api/admin/epi/issue", body),
+  updateEpiIssuance: (
+    id: string,
+    body: {
+      status?: string;
+      size?: string | null;
+      issuedAt?: string;
+      nextReplacementAt?: string | null;
+    }
+  ) => client.patch(`/api/admin/epi/issuances/${encodeURIComponent(id)}`, body),
+  deleteEpiIssuance: (id: string) =>
+    client.delete(`/api/admin/epi/issuances/${encodeURIComponent(id)}`),
   epiEmployees: (params?: Record<string, string>) =>
     client.get("/api/admin/epi/employees", { params }),
   /** Admin dashboard معدات tab — same summaries as employee GET /api/epi/summary */
