@@ -21,7 +21,8 @@
     "db:demo-users": "tsx scripts/upsert-demo-users.ts",
     "db:courses": "tsx scripts/upsert-courses.ts",
     "db:reset-training": "tsx prisma/resetTraining.ts",
-    "postinstall": "puppeteer browsers install chrome",
+    "postinstall": "prisma generate",
+    "chrome:install": "puppeteer browsers install chrome",
     "cert:test": "tsx scripts/test-certificate-pdf.ts"
   },
   "dependencies": {

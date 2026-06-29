@@ -3,6 +3,8 @@ on: [push, pull_request]
 jobs:
   server-tests:
     runs-on: ubuntu-latest
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: "true"
     services:
       postgres:
         image: postgres:16
@@ -15,8 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm run install:all
-      - run: cd server && npx prisma migrate deploy && npx prisma db seed
+      - run: npm ci
+      - run: cd server && npx prisma migrate deploy && npx prisma generate && npx prisma db seed
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5434/averda_academy_test
           JWT_SECRET: test_jwt_secret
@@ -41,13 +43,13 @@ jobs:
 
   production-build:
     runs-on: ubuntu-latest
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm run install:all
+      - run: npm ci
       - run: cd server && npx prisma generate
       - run: npm run build
-        env:
-          PUPPETEER_SKIP_DOWNLOAD: "true"
