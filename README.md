@@ -60,8 +60,7 @@ L’application fonctionne sur **téléphone, tablette et ordinateur**. L’inte
 
 **Pour qui :** chauffeurs, agents de collecte, balayeurs, maintenance, agents de parc, chefs d’équipe…
 
-**Adresse :**  
-- En production : **https://averdaacademy.ma/login**  
+**Adresse :**   
 - En test local : http://localhost:5173/login
 
 **Connexion :** numéro de matricule (ex. `AV000001`) + code PIN à 4 chiffres.
@@ -70,8 +69,7 @@ L’application fonctionne sur **téléphone, tablette et ordinateur**. L’inte
 
 **Pour qui :** responsables RH, HSE, formation, IT.
 
-**Adresse :**  
-- En production : **https://averdaacademy.ma/admin/login**  
+**Adresse :**   
 - En test local : http://localhost:5173/admin/login
 
 **Connexion :** adresse e-mail professionnelle + mot de passe.
@@ -83,7 +81,7 @@ L’application fonctionne sur **téléphone, tablette et ordinateur**. L’inte
 ### Étape 1 — Ouvrir le site
 
 1. Ouvrez Chrome ou Safari sur votre téléphone ou PC.
-2. Allez sur **https://averdaacademy.ma/login** (ou le lien fourni par votre entreprise).
+2. Allez sur **http://localhost:5173**
 3. Choisissez votre langue en haut : **العربية** · **Français** · **English**.
 
 ### Étape 2 — Se connecter
@@ -139,7 +137,7 @@ Dans votre **profil** ou la section EPI :
 
 ### Étape 1 — Connexion
 
-1. Allez sur **https://averdaacademy.ma/admin/login**
+1. Allez sur **http://localhost:5173/admin/login**
 2. Entrez l’e-mail admin et le mot de passe.
 3. Vous arrivez sur le **tableau de bord principal**.
 
