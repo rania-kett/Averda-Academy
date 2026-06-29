@@ -7,7 +7,7 @@ import { prisma } from "../src/lib/prisma.js";
 import { hashPassword, hashPin } from "../src/utils/hash.js";
 import { upsertEpiCatalogAndDefaults } from "../src/services/epiCatalogSeed.js";
 
-const ADMIN_EMAIL = "admin@averda.com";
+const ADMIN_EMAIL = "admin@averda.ma";
 const ADMIN_PASSWORD = "Admin@2026";
 const EMPLOYEE_PIN = "1234";
 
@@ -55,17 +55,6 @@ async function main() {
   const pinHash = await hashPin(EMPLOYEE_PIN);
 
   const categoryByCode = await ensureCategories();
-
-  // Remove stale .ma admin email if it blocks the unique email constraint
-  const staleMa = await prisma.user.findFirst({
-    where: { email: "admin@averda.ma", role: Role.ADMIN },
-  });
-  if (staleMa && staleMa.employeeId !== "ADM-000") {
-    await prisma.user.update({
-      where: { id: staleMa.id },
-      data: { email: null },
-    });
-  }
 
   await prisma.user.upsert({
     where: { employeeId: "ADM-000" },

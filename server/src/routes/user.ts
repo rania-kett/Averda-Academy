@@ -17,6 +17,7 @@ import { NEW_BADGES, NEW_BADGE_KEYS } from "../services/badgeCatalog.js";
 import { evaluateAllBadgesForUser } from "../services/badgeService.js";
 import { filterVisibleEmployeeNotifications } from "../utils/employeeNotificationFilters.js";
 import { issueEmployeeCertificate, sendCertificatePdf, buildCertificateDownloadName } from "../services/certificateService.js";
+import { comparePin, hashPin } from "../utils/hash.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -213,6 +214,41 @@ router.patch(
         data: { language },
       });
       res.json({ ok: true, language });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+router.post(
+  "/me/change-pin",
+  body("currentPin").isLength({ min: 4, max: 4 }).isNumeric(),
+  body("newPin").isLength({ min: 4, max: 4 }).isNumeric(),
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ error: "Validation failed", details: errors.array() });
+        return;
+      }
+      const { userId, role } = (req as AuthedRequest).user;
+      if (role !== "EMPLOYEE") throw new AppError(403, "Forbidden");
+      const { currentPin, newPin } = req.body as { currentPin: string; newPin: string };
+      if (currentPin === newPin) {
+        throw new AppError(400, "New PIN must be different from current PIN");
+      }
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { pin: true },
+      });
+      if (!user) throw new AppError(404, "User not found");
+      const valid = await comparePin(currentPin, user.pin);
+      if (!valid) throw new AppError(401, "Invalid current PIN");
+      await prisma.user.update({
+        where: { id: userId },
+        data: { pin: await hashPin(newPin) },
+      });
+      res.json({ ok: true });
     } catch (e) {
       next(e);
     }

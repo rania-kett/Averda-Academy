@@ -13,6 +13,7 @@ import { translatedEmployeeBadgeName } from "@/i18n/badgeName";
 import { buildEpiProgress } from "@/utils/epiProgress";
 import { FOCUS_EPI_EVENT, type FocusEpiLocationState } from "@/utils/employeeEpiFocus";
 import { CertificateButton } from "@/components/employee/CertificateButton";
+import { ChangePinCard } from "@/components/employee/ChangePinCard";
 import { displayEmployeeName } from "@/utils/displayEmployeeName";
 import { resolveCertificateLocale } from "@/utils/certificateTemplate";
 
@@ -447,6 +448,8 @@ export function ProfilePage() {
           </p>
         )}
       </Card>
+
+      <ChangePinCard />
     </div>
   );
 }

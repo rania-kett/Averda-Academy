@@ -37,6 +37,8 @@ server/uploads/
 *.docx
 *.pdf
 !server/assets/placeholder.pdf
+!server/assets/recycling-logo.png
+!server/assets/medaille-logo.png
 !client/public/courses/**/*.pdf
 *.txt
 

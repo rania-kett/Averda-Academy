@@ -72,6 +72,11 @@ const CATEGORY_DEFS = [
     idPrefix: "AV",
     name: { fr: "Chef d'équipe", en: "Team Leader", ar: "رئيس فريق" },
   },
+  {
+    code: "parkAgent",
+    idPrefix: "AV",
+    name: { fr: "Agent de Parc", en: "Park Agent", ar: "عون الحظيرة" },
+  },
 ] as const;
 
 type EmployeeSeed = {
@@ -215,7 +220,7 @@ async function main() {
       employeeId: "ADM-000",
       name: "Averda Admin",
       pin: await hashPin("0000"),
-      email: "admin@averda.com",
+      email: "admin@averda.ma",
       passwordHash: adminPass,
       role: Role.ADMIN,
       avatarColor: "#6366F1",
@@ -223,7 +228,7 @@ async function main() {
     },
     update: {
       name: "Averda Admin",
-      email: "admin@averda.com",
+      email: "admin@averda.ma",
       passwordHash: adminPass,
     },
   });
@@ -270,7 +275,7 @@ async function main() {
   const courseCount = await prisma.course.count({ where: { isActive: true } });
   console.log("✅ Seed completed");
   console.log(`   activeCourses: ${courseCount} (queried from DB)`);
-  console.log("   Employee PIN: 1234 | Admin: admin@averda.com / Admin@2026");
+  console.log("   Employee PIN: 1234 | Admin: admin@averda.ma / Admin@2026");
 }
 
 main()

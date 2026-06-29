@@ -19,6 +19,7 @@ import { vibrateDevice } from "@/utils/vibrateDevice";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { formatNewBadgeLabels, type EmployeeBadgeLang } from "@/i18n/badgeName";
 import {
   clearOfflineQuizState,
   loadOfflineQuizState,
@@ -580,7 +581,8 @@ export function QuizPage() {
             animate={{ scale: 1, opacity: 1 }}
             className="rounded-2xl bg-emerald-50 p-4 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
           >
-            <span className="font-extrabold">{t("badge.new")}</span> {newBadges.join(", ")}
+            <span className="font-extrabold">{t("badge.new")}</span>{" "}
+            {formatNewBadgeLabels(newBadges, t, lang as EmployeeBadgeLang)}
           </motion.div>
         )}
       </div>

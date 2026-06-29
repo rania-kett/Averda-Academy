@@ -420,7 +420,18 @@
       "generatingCertificate": "Generating certificate…",
       "certificateExportFailed": "Could not generate the certificate. Please try again.",
       "saveLang": "Save language",
-      "logout": "Log out"
+      "logout": "Log out",
+      "changePinTitle": "Change PIN",
+      "changePinSubtitle": "Choose a new 4-digit code to sign in",
+      "currentPin": "Current PIN",
+      "newPin": "New PIN",
+      "confirmPin": "Confirm new PIN",
+      "savePin": "Update PIN",
+      "pinChanged": "PIN updated successfully",
+      "pinChangeFailed": "Could not update PIN",
+      "pinMismatch": "PIN codes do not match",
+      "pinInvalid": "Current PIN is incorrect",
+      "pinSame": "New PIN must be different from current PIN"
     },
     "quiz": {
       "of": "Question {{n}} of 10",
@@ -943,6 +954,17 @@
       "resetConfirm": "This removes all progress for this employee.",
       "delete": "Delete employee",
       "deleteConfirm": "Permanently delete this employee and all their data? This cannot be undone.",
+      "deleteModalTitle": "Delete employee",
+      "deleteModalMessage": "Are you sure you want to delete {{name}}? This action is irreversible and will remove all their data (courses, PPE, quizzes, badges).",
+      "deleteConfirmBtn": "Delete permanently",
+      "edit": "Edit",
+      "editTitle": "Edit employee",
+      "updated": "Employee updated successfully",
+      "activeStatus": "Active account",
+      "pinPlaceholder": "New PIN (optional)",
+      "truckNumber": "Vehicle number",
+      "truckNumberPlaceholder": "e.g. TRK-042",
+      "truckNotAssigned": "Not assigned",
       "joinDate": "Joined",
       "langPref": "Language",
       "courseQuiz": "Course quiz",
@@ -1018,6 +1040,7 @@
         "invalidHex": "Enter a color in #RRGGBB format",
         "pickIcon": "Pick an icon",
         "customEmoji": "Custom emoji",
+        "customEmojiHint": "Paste or type any emoji — preview updates on the left",
         "uploadPdf": "Upload PDF",
         "removeFile": "Remove file",
         "dropPdf": "Drag a PDF file here",
@@ -1146,6 +1169,12 @@
       "loadFailed": "Could not load PPE management data",
       "saveFailed": "Could not save defaults",
       "issueFailed": "Could not issue equipment",
+      "catalogTitle": "Equipment catalog",
+      "deleteCatalogConfirm": "Remove this item from the catalog?",
+      "deleteCatalogForceWarning": "This equipment has been issued to employees. Forcing removal will only hide it from the catalog — existing passports are kept.",
+      "deleteCatalogForceBtn": "Force removal",
+      "catalogDeleted": "Catalog item removed",
+      "catalogDeleteFailed": "Could not remove catalog item",
       "editIssuance": "Edit",
       "deleteIssuance": "Delete issuance",
       "deleteIssuanceConfirm": "Delete this PPE issuance? This cannot be undone.",
@@ -1159,7 +1188,8 @@
     }
   },
   "badge": {
-    "new": "New badge unlocked!"
+    "new": "New badge unlocked!",
+    "earned": "🎉 New badge: {{names}}"
   },
   "group": { "DRIVER": "Driver", "WORKER": "Worker" },
   "status": { "not_started": "Not started", "in_progress": "In progress", "completed": "Completed" }

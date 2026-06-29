@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-import { app, getAuthToken, getAdminToken } from "../setup.js";
+import { app, getAuthToken, getAdminToken, prisma } from "../setup.js";
 import { ensureSeed } from "../helpers/ensureSeed.js";
 
 describe("epi integration", () => {
@@ -73,6 +73,48 @@ describe("epi integration", () => {
         .get("/api/admin/epi/catalog")
         .set("Authorization", `Bearer ${adminToken}`);
       expect(res.status).toBe(200);
+    });
+  });
+
+  describe("DELETE /api/admin/epi/catalog/:code", () => {
+    const TEST_CODE = "TEST-ITEM-DELETE";
+
+    it("delete unused catalog item → 200", async () => {
+      await prisma.epiItemCatalog.upsert({
+        where: { code: TEST_CODE },
+        create: {
+          code: TEST_CODE,
+          labelAr: "اختبار",
+          labelFr: "Test Item",
+          labelEn: "Test Item",
+          emoji: "🧪",
+          defaultLifetimeDays: 365,
+          sortOrder: 9999,
+          active: true,
+        },
+        update: { active: true },
+      });
+
+      const res = await request(app)
+        .delete(`/api/admin/epi/catalog/${TEST_CODE}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const check = await prisma.epiItemCatalog.findUnique({ where: { code: TEST_CODE } });
+      expect(check).toBeNull();
+    });
+
+    it("no token → 401", async () => {
+      const res = await request(app).delete("/api/admin/epi/catalog/FAKE-CODE");
+      expect(res.status).toBe(401);
+    });
+
+    it("non-existent code → 404", async () => {
+      const res = await request(app)
+        .delete("/api/admin/epi/catalog/DOES-NOT-EXIST-XYZ")
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(404);
     });
   });
 });

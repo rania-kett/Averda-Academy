@@ -15,8 +15,11 @@
     "test:coverage": "vitest run --coverage",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:demo-users": "tsx scripts/upsert-demo-users.ts",
+    "db:courses": "tsx scripts/upsert-courses.ts",
     "db:reset-training": "tsx prisma/resetTraining.ts",
     "postinstall": "puppeteer browsers install chrome",
     "cert:test": "tsx scripts/test-certificate-pdf.ts"

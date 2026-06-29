@@ -9,6 +9,7 @@ import {
   courseCardTitleStyle,
   courseCardWrapperStyle,
 } from "@/components/employee/courseCardLayout";
+import { CourseCustomEmojiInput } from "@/components/admin/CourseCustomEmojiInput";
 import { CATEGORIES, categoryKeyFromCode, type CategoryKey } from "@/config/categories";
 import { getColorFromEmoji } from "@/utils/getColorFromEmoji";
 import { getReadTime } from "@/utils/courseReadTime";
@@ -754,21 +755,18 @@ export function AdminCourseFormModal({
                     );
                   })}
                 </div>
-                <div className="mt-3">
-                  <label className="mb-1 block text-[11px] font-bold text-[#6b7280]">{fm("customEmoji")}</label>
-                  <input
-                    value={iconChoice}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      const g = v.length ? [...v].pop() ?? v : "";
-                      setIconChoice(g || "📘");
-                      if (coverColorMode === "auto" && g) setCoverColor(normalizeHex(getColorFromEmoji(g)));
-                    }}
-                    placeholder="🚦"
-                    maxLength={8}
-                    className="w-full max-w-[120px] rounded-lg border border-[#e5e7eb] bg-[#fafafa] px-3 py-2 text-center text-2xl leading-none"
-                  />
-                </div>
+                <CourseCustomEmojiInput
+                  className="mt-3"
+                  value={iconChoice}
+                  onChange={(emoji) => {
+                    setIconChoice(emoji);
+                    if (coverColorMode === "auto") {
+                      setCoverColor(normalizeHex(getColorFromEmoji(emoji)));
+                    }
+                  }}
+                  label={fm("customEmoji")}
+                  hint={fm("customEmojiHint")}
+                />
               </div>
 
               <div className={SECTION_CARD}>

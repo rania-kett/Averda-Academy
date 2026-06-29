@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, Shield, X } from "lucide-react";
+import { isAxiosError } from "axios";
+import { Search, Shield, Trash2, X } from "lucide-react";
 import { adminApi } from "@/api/api";
+import { ConfirmDeleteModal } from "@/components/admin/ConfirmDeleteModal";
 import { epiLocalApi } from "@/data/epiLocalApi";
 import {
   epiStoreGetAllEmployees,
@@ -80,6 +82,9 @@ export function EpiAdminPage() {
   const [epiIssueUser, setEpiIssueUser] = useState<{ id: string; name: string; employeeId: string } | null>(null);
   const [epiIssueCodes, setEpiIssueCodes] = useState<string[]>([]);
   const [epiIssuing, setEpiIssuing] = useState(false);
+  const [epiDeleteTarget, setEpiDeleteTarget] = useState<{ code: string; label: string } | null>(null);
+  const [epiDeleteForceMode, setEpiDeleteForceMode] = useState(false);
+  const [epiDeleteLoading, setEpiDeleteLoading] = useState(false);
   const [editingIssuanceId, setEditingIssuanceId] = useState<string | null>(null);
   const [editStatus, setEditStatus] = useState("issued");
   const [editSize, setEditSize] = useState("");
@@ -409,6 +414,39 @@ export function EpiAdminPage() {
     setCommittedSearch(search.trim());
   };
 
+  const reloadEpiCatalog = async () => {
+    if (usingLocalEpi) {
+      setEpiCatalog(epiStoreGetCatalog() as any);
+      return;
+    }
+    const { data } = await adminApi.epiCatalog();
+    setEpiCatalog((data as any).items ?? []);
+  };
+
+  const confirmDeleteEpiItem = async (force = false) => {
+    if (!epiDeleteTarget || epiDeleteLoading) return;
+    setEpiDeleteLoading(true);
+    try {
+      await adminApi.deleteEpiItem(epiDeleteTarget.code, force);
+      setEpiDeleteTarget(null);
+      setEpiDeleteForceMode(false);
+      await reloadEpiCatalog();
+      toast(t("admin.epiManage.catalogDeleted"), "success");
+    } catch (e: unknown) {
+      if (!force && isAxiosError(e) && e.response?.status === 409) {
+        setEpiDeleteForceMode(true);
+        return;
+      }
+      const msg =
+        isAxiosError(e) && e.response?.data?.error
+          ? String(e.response.data.error)
+          : t("admin.epiManage.catalogDeleteFailed");
+      toast(msg, "error");
+    } finally {
+      setEpiDeleteLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -647,6 +685,45 @@ export function EpiAdminPage() {
               >
                 {t("common.close")}
               </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-[#E5E7EB] p-4 dark:border-[#30363D]">
+              <div className="text-[13px] font-extrabold text-[#111827] dark:text-white">{t("admin.epiManage.catalogTitle")}</div>
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {epiCatalog.map((it) => (
+                  <div
+                    key={it.code}
+                    className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-[13px] font-semibold ${
+                      it.active
+                        ? "border-[#E5E7EB] bg-white text-[#111827] dark:border-[#30363D] dark:bg-[#161B22] dark:text-white"
+                        : "border-dashed border-[#D1D5DB] bg-[#F9FAFB] text-[#9CA3AF] dark:border-[#30363D] dark:bg-white/5"
+                    }`}
+                  >
+                    <span className="truncate">
+                      <span className="me-2" aria-hidden>
+                        {it.emoji ?? "🦺"}
+                      </span>
+                      {epiCatalogLabel(it)}
+                      {!it.active && (
+                        <span className="ms-2 text-[11px] font-bold uppercase opacity-70">({t("common.inactive")})</span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={usingLocalEpi || epiDeleteLoading}
+                      onClick={() => {
+                        setEpiDeleteForceMode(false);
+                        setEpiDeleteTarget({ code: it.code, label: epiCatalogLabel(it) });
+                      }}
+                      className="shrink-0 rounded-lg border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100 disabled:opacity-40 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+                      title={t("common.delete")}
+                      aria-label={t("common.delete")}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="mt-5 grid gap-6 lg:grid-cols-2">
@@ -916,6 +993,30 @@ export function EpiAdminPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDeleteModal
+        open={epiDeleteTarget != null}
+        title={t("admin.epiManage.catalogTitle")}
+        message={
+          epiDeleteForceMode
+            ? t("admin.epiManage.deleteCatalogForceWarning")
+            : t("admin.epiManage.deleteCatalogConfirm")
+        }
+        cancelLabel={t("common.cancel")}
+        confirmLabel={
+          epiDeleteForceMode
+            ? t("admin.epiManage.deleteCatalogForceBtn")
+            : t("common.delete")
+        }
+        loading={epiDeleteLoading}
+        onCancel={() => {
+          if (!epiDeleteLoading) {
+            setEpiDeleteTarget(null);
+            setEpiDeleteForceMode(false);
+          }
+        }}
+        onConfirm={() => void confirmDeleteEpiItem(epiDeleteForceMode)}
+      />
     </div>
   );
 }

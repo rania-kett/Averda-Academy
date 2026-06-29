@@ -176,18 +176,21 @@ cp server/.env.example server/.env
 # Edit server/.env with your values (see Environment Variables section)
 
 # 4. Start PostgreSQL
-docker run -d --name averda-academy-db \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=averda_academy \
-  -p 5434:5432 postgres:16
+docker compose up -d
+# Or: npm run docker:up
 
-# 5. Run database migrations and seed
+# 5. Run database migrations and seed demo users (safe — does not wipe data)
 cd server
 npx prisma migrate deploy
 npx prisma generate
-npx prisma db seed
+npx tsx scripts/upsert-demo-users.ts
 cd ..
+# Or from project root: npm run db:init
+
+# ⚠️ Keep your data: never run `docker compose down -v` (the `-v` flag deletes the volume).
+# To stop Postgres only: `docker compose down` or `npm run docker:down`
+
+# Optional full reset (WIPES employees + EPI): npx prisma db seed — avoid unless you intend to reset.
 
 # 6. Start the development servers
 npm run dev

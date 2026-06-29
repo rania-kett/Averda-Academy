@@ -577,6 +577,8 @@ router.get(
           employeeId: u.employeeId,
           name: u.name,
           category: u.category,
+          categoryId: u.categoryId,
+          truckNumber: (u as { truckNumber?: string | null }).truckNumber ?? null,
           group: employeeGroupFromCategoryCode(u.category?.code),
           language: u.language,
           avatarColor: u.avatarColor,
@@ -762,6 +764,72 @@ router.post(
   }
 );
 
+router.patch(
+  "/employees/:id",
+  param("id").notEmpty(),
+  body("name").optional().trim().notEmpty(),
+  body("categoryId").optional().isString().notEmpty(),
+  body("pin").optional().isLength({ min: 4, max: 4 }).isNumeric(),
+  body("isActive").optional().isBoolean(),
+  body("truckNumber").optional({ nullable: true }).isString().trim(),
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ error: "Validation failed", details: errors.array() });
+        return;
+      }
+      const uid = req.params!.id!;
+      const { name, categoryId, pin, isActive, truckNumber } = req.body as {
+        name?: string;
+        categoryId?: string;
+        pin?: string;
+        isActive?: boolean;
+        truckNumber?: string | null;
+      };
+
+      const existing = await prisma.user.findUnique({
+        where: { id: uid },
+        select: { id: true, role: true },
+      });
+      if (!existing || existing.role !== "EMPLOYEE") {
+        throw new AppError(404, "Employee not found");
+      }
+
+      const updateData: {
+        name?: string;
+        categoryId?: string;
+        pin?: string;
+        isActive?: boolean;
+        truckNumber?: string | null;
+      } = {};
+      if (name !== undefined) updateData.name = name.trim();
+      if (categoryId !== undefined) {
+        const cat = await prisma.category.findUnique({ where: { id: categoryId } });
+        if (!cat) throw new AppError(404, "Category not found");
+        updateData.categoryId = categoryId;
+      }
+      if (isActive !== undefined) updateData.isActive = isActive;
+      if (truckNumber !== undefined) {
+        updateData.truckNumber =
+          truckNumber === null ? null : truckNumber.trim() || null;
+      }
+      if (pin !== undefined) {
+        updateData.pin = await hashPin(pin);
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: uid },
+        data: updateData,
+        include: { category: true },
+      });
+      res.json(updated);
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
 router.delete("/employees/:id", param("id").notEmpty(), async (req, res, next) => {
   try {
     const uid = req.params!.id!;
@@ -769,12 +837,25 @@ router.delete("/employees/:id", param("id").notEmpty(), async (req, res, next) =
       where: { id: uid },
       select: { id: true, role: true },
     });
-    if (!user || user.role !== "EMPLOYEE") throw new AppError(404, "Employee not found");
+    if (!user) throw new AppError(404, "Employee not found");
+    if (user.role === "ADMIN") throw new AppError(403, "Cannot delete admin");
+    if (user.role !== "EMPLOYEE") throw new AppError(404, "Employee not found");
+
+    const issuances = await prisma.epiIssuance.findMany({
+      where: { userId: uid },
+      select: { id: true },
+    });
+    const issuanceIds = issuances.map((e) => e.id);
 
     await prisma.$transaction(async (tx) => {
+      if (issuanceIds.length) {
+        await tx.epiReceptionConfirmation.deleteMany({
+          where: { issuanceId: { in: issuanceIds } },
+        });
+      }
       await tx.epiReplacementRequest.deleteMany({ where: { userId: uid } });
-      await tx.epiIssuance.deleteMany({ where: { userId: uid } });
       await tx.epiRenewalRequest.deleteMany({ where: { userId: uid } });
+      await tx.epiIssuance.deleteMany({ where: { userId: uid } });
       await tx.epiComplianceProof.deleteMany({ where: { userId: uid } });
       await tx.epiFeedback.deleteMany({ where: { userId: uid } });
       await tx.epiProfile.deleteMany({ where: { userId: uid } });
@@ -787,7 +868,7 @@ router.delete("/employees/:id", param("id").notEmpty(), async (req, res, next) =
       await tx.user.delete({ where: { id: uid } });
     });
 
-    res.json({ success: true });
+    res.json({ success: true, message: "Employee deleted successfully" });
   } catch (e) {
     next(e);
   }
@@ -1443,6 +1524,51 @@ router.get("/epi/catalog", async (_req, res, next) => {
     next(e);
   }
 });
+
+router.delete(
+  "/epi/catalog/:code",
+  param("code").isString().notEmpty(),
+  query("force").optional().isIn(["true", "1"]),
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ error: "Validation failed", details: errors.array() });
+        return;
+      }
+      const code = req.params!.code!;
+      const force = req.query?.force === "true" || req.query?.force === "1";
+
+      const item = await epiDb.epiItemCatalog.findUnique({ where: { code } });
+      if (!item) throw new AppError(404, "Catalog item not found");
+
+      const inUse = await prisma.epiIssuance.findFirst({ where: { itemCode: code } });
+      if (inUse && !force) {
+        res.status(409).json({
+          error:
+            "Impossible de supprimer: cet équipement a déjà été émis à des employés.",
+          canForce: true,
+        });
+        return;
+      }
+
+      await epiDb.epiCategoryDefaultItem.deleteMany({ where: { itemCode: code } });
+
+      if (inUse && force) {
+        await epiDb.epiItemCatalog.update({
+          where: { code },
+          data: { active: false },
+        });
+      } else {
+        await epiDb.epiItemCatalog.delete({ where: { code } });
+      }
+
+      res.json({ success: true });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 router.get(
   "/epi/category-defaults/:categoryId",

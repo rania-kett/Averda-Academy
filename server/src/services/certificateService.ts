@@ -1,8 +1,8 @@
 /**
- * Averda Academy — Premium Certificate
- * Inspired by the reference design: cream background, blue border,
- * laurel icons, large centered name, real gold medal + red/gold ribbons
- * HTML → PDF via Puppeteer | AR / FR / EN
+ * Averda Academy — Certificate v5 FINAL
+ * Design: cream bg, blue double border, recycle corners,
+ * gold laurels flanking title, large name, medal image + score,
+ * official seal stamp, faint watermark logo
  */
 import puppeteer, { type Browser } from "puppeteer";
 import fs from "fs";
@@ -77,7 +77,7 @@ async function launchCertificateBrowser(): Promise<Browser> {
   for (const candidate of systemBrowserCandidates()) {
     if (!fs.existsSync(candidate)) continue;
     try {
-      return await puppeteer.launch({
+      return puppeteer.launch({
         headless: true,
         executablePath: candidate,
         args: PUPPETEER_ARGS,
@@ -96,8 +96,24 @@ async function launchCertificateBrowser(): Promise<Browser> {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** Bump when certificate layout changes — invalidates cached PDF filenames. */
-export const CERT_TEMPLATE_VERSION = "premium-gold-v22";
+export const CERT_TEMPLATE_VERSION = "premium-gold-v12";
 
+/** Border corner inset — recycling logos centered on border junctions. */
+const CORNER_INSET = 58;
+const INNER_INSET = CORNER_INSET + 6; /* light-blue inner frame */
+const CORNER_LOGO_PX = 112;
+const MEDAL_IMG_PX = 140;
+/** Gold disc region in medaille-logo.png (360×360) — pixel-measured overlay. */
+const MEDAL_DISC = { left: "20.83%", top: "10.83%", width: "56.67%", height: "41.11%" } as const;
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 export type Lang = "AR" | "FR" | "EN";
 
 export interface CertificateOptions {
@@ -112,8 +128,7 @@ export interface CertificateOptions {
 
 const T = {
   AR: {
-    dir: "rtl",
-    isRTL: true,
+    dir: "rtl", isRTL: true,
     mainTitle: "شهادة الإكمال",
     tagline: "إدارة النفايات وإعادة التدوير",
     academy: "أكاديمية أفيردا",
@@ -122,60 +137,89 @@ const T = {
       `لإتمامه بنجاح برنامج «${course}» بصفته ${role}، بمعدل نهائي قدره ${score}٪، وذلك وفق معايير السلامة والامتثال المعتمدة لدى أكاديمية أفيردا.`,
     from: "من:",
     company: "شركة أفيردا",
+    ceo: "الرئيس التنفيذي",
     dateLabel: "التاريخ",
     scoreLabel: "النتيجة",
-    purity: "خالٍ من العهد",
+    sealLine1: "Averda Academy",
+    sealLine2: "خالٍ من العهد",
   },
   FR: {
-    dir: "ltr",
-    isRTL: false,
+    dir: "ltr", isRTL: false,
     mainTitle: "Certificat de Réussite",
     tagline: "Gestion des Déchets et Recyclage",
     academy: "Averda Academy",
     awardedTo: "Décerné à",
     body: (role: string, score: number, course: string) =>
-      `Pour avoir complété avec succès le programme « ${course} » en tant que ${role}, avec un score final de ${score}\u00A0%, conformément aux standards de sécurité d'Averda Academy.`,
+      `Pour avoir complété avec succès le programme « ${course} » en tant que ${role}, avec un score final de ${score}\u00A0%, conformément aux standards de sécurité et de conformité d'Averda Academy.`,
     from: "De:",
     company: "Averda S.A.",
+    ceo: "Directeur Général",
     dateLabel: "Date",
     scoreLabel: "Score",
-    purity: "Certifié",
+    sealLine1: "Averda Academy",
+    sealLine2: "Certifié",
   },
   EN: {
-    dir: "ltr",
-    isRTL: false,
+    dir: "ltr", isRTL: false,
     mainTitle: "Certificate of Achievement",
-    tagline: "Waste Management and Recycling",
+    tagline: "Waste Management & Recycling",
     academy: "Averda Academy",
     awardedTo: "Awarded to",
     body: (role: string, score: number, course: string) =>
-      `For successfully completing the « ${course} » programme as ${role}, achieving a final score of ${score}%, in accordance with Averda Academy standards.`,
+      `For successfully completing the « ${course} » programme as ${role}, achieving a final score of ${score}%, in accordance with Averda Academy's safety and compliance standards.`,
     from: "From:",
     company: "Averda Co.",
+    ceo: "Chief Executive",
     dateLabel: "Date",
     scoreLabel: "Score",
-    purity: "Certified",
+    sealLine1: "Averda Academy",
+    sealLine2: "Certified",
   },
 } as const;
 
 const ROLES: Record<string, Record<Lang, string>> = {
-  driver: { AR: "سائق", FR: "Chauffeur", EN: "Driver" },
-  sweeper: { AR: "عامل نظافة", FR: "Balayeur", EN: "Sweeper" },
-  loader: { AR: "عامل تحميل", FR: "Chargeur", EN: "Loader" },
-  teamLeader: { AR: "رئيس فريق", FR: "Chef d'Équipe", EN: "Team Leader" },
-  parkAgent: { AR: "عامل حديقة", FR: "Agent de Parc", EN: "Park Agent" },
-  maintenance: { AR: "صيانة", FR: "Agent de Maintenance", EN: "Maintenance" },
+  driver:      { AR: "سائق",        FR: "Chauffeur",            EN: "Driver" },
+  sweeper:     { AR: "عامل نظافة",  FR: "Balayeur",             EN: "Sweeper" },
+  loader:      { AR: "عامل تحميل", FR: "Chargeur",             EN: "Loader" },
+  teamLeader:  { AR: "رئيس فريق",  FR: "Chef d'Équipe",        EN: "Team Leader" },
+  parkAgent:   { AR: "عامل حديقة", FR: "Agent de Parc",        EN: "Park Agent" },
+  maintenance: { AR: "صيانة",       FR: "Agent de Maintenance", EN: "Maintenance" },
 };
 
-/** 1×1 transparent GIF — used only when logo files are missing */
+/** 1x1 transparent GIF — used only when logo files are missing */
 const LOGO_PLACEHOLDER =
   "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
+const AR_MONTHS = [
+  "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+  "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
+] as const;
+
 function fmtDate(d: Date, lang: Lang): string {
-  return d.toLocaleDateString(
-    lang === "AR" ? "ar-MA" : lang === "FR" ? "fr-FR" : "en-US",
-    { day: "numeric", month: "long", year: "numeric" }
-  );
+  if (lang === "AR") {
+    return `${d.getDate()} ${AR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  }
+  if (lang === "FR") {
+    return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  }
+  return d.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function loadAssetDataUrl(filename: string): string | null {
+  const cands = [
+    path.join(__dirname, "../assets", filename),
+    path.join(__dirname, "../../pictures", filename),
+    path.join(process.cwd(), "pictures", filename),
+    path.join(process.cwd(), "../pictures", filename),
+  ];
+  for (const p of cands) {
+    if (!fs.existsSync(p)) continue;
+    const ext = path.extname(p).toLowerCase();
+    const mime =
+      ext === ".png" ? "image/png" : ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : "image/png";
+    return `data:${mime};base64,` + fs.readFileSync(p).toString("base64");
+  }
+  return null;
 }
 
 function getLogo(): string {
@@ -185,96 +229,52 @@ function getLogo(): string {
     path.join(process.cwd(), "client/public/averda_logo.png"),
     path.join(process.cwd(), "../client/public/averda_logo.png"),
   ];
-  for (const p of cands) {
-    if (fs.existsSync(p)) {
-      return "data:image/png;base64," + fs.readFileSync(p).toString("base64");
-    }
-  }
+  for (const p of cands) if (fs.existsSync(p))
+    return "data:image/png;base64," + fs.readFileSync(p).toString("base64");
   return LOGO_PLACEHOLDER;
 }
 
+function getRecyclingLogo(): string {
+  return loadAssetDataUrl("recycling-logo.png") ?? LOGO_PLACEHOLDER;
+}
+
+function getMedalLogo(): string {
+  return loadAssetDataUrl("medaille-logo.png") ?? LOGO_PLACEHOLDER;
+}
+
 function buildHTML(opts: CertificateOptions): string {
-  const lang = opts.language ?? "AR";
-  const t = T[lang];
-  const isRTL = t.isRTL;
-  const date = opts.completionDate ?? new Date();
-  const year = date.getFullYear();
-  const certId = `AVD-${year}-${Math.floor(10000 + Math.random() * 90000)}`;
-  const role = ROLES[opts.role]?.[lang] ?? opts.role;
-  const score = Math.round(opts.score);
-  const logo = getLogo();
-  const dateStr = fmtDate(date, lang);
-  const bodyTx = t.body(role, score, opts.courseName);
+  const lang    = opts.language ?? "AR";
+  const t       = T[lang];
+  const isRTL   = t.isRTL;
+  const date    = opts.completionDate ?? new Date();
+  const year    = date.getFullYear();
+  const certId  = `AVD-${year}-${Math.floor(10000 + Math.random() * 90000)}`;
+  const roleRaw = ROLES[opts.role]?.[lang] ?? opts.role;
+  const score   = Math.round(opts.score);
+  const logo    = getLogo();
+  const recyclingLogo = getRecyclingLogo();
+  const medalLogo = getMedalLogo();
+  const dateStr = escapeHtml(fmtDate(date, lang));
+  const safeName = escapeHtml(opts.recipientName);
+  const bodyTx  = escapeHtml(t.body(roleRaw, score, opts.courseName));
 
   const gFont = isRTL
     ? "https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;600;700;900&display=swap"
-    : "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700&family=Lato:wght@300;400;700;900&display=swap";
+    : "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Lato:wght@300;400;700;900&display=swap";
 
-  const bodyF = isRTL ? "'Noto Sans Arabic',sans-serif" : "'Lato',sans-serif";
+  const bodyF  = isRTL ? "'Noto Sans Arabic',sans-serif" : "'Lato',sans-serif";
   const titleF = isRTL ? "'Noto Sans Arabic',sans-serif" : "'Cormorant Garamond',serif";
-  const nameF = isRTL ? "'Noto Sans Arabic',sans-serif" : "'Cormorant Garamond',serif";
 
-  const BLUE = "#28609d";
-  const GOLD = "#c5a059";
-  const GOLD_LIGHT = "#d4af37";
+  /* ── SVGs ── */
 
-  const cornerBracket = (pos: "tl" | "tr" | "bl" | "br") => {
-    const flip =
-      pos === "tr" ? "scaleX(-1)" : pos === "bl" ? "scaleY(-1)" : pos === "br" ? "scale(-1)" : "";
-    return `<svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" style="transform:${flip}" aria-hidden="true">
-      <path d="M3 22 L3 3 L22 3" stroke="${GOLD}" stroke-width="2.5" fill="none" stroke-linecap="square"/>
-      <circle cx="5" cy="5" r="2" fill="${BLUE}" opacity=".55"/>
-    </svg>`;
-  };
-
-  const titleStar = (id: "L" | "R") =>
-    `<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-      <defs>
-        <linearGradient id="starGrad${id}" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#f5d76e"/>
-          <stop offset="55%" stop-color="${GOLD_LIGHT}"/>
-          <stop offset="100%" stop-color="${GOLD}"/>
-        </linearGradient>
-      </defs>
-      <path d="M12 1.8 L14.6 9.1 H22.4 L16.2 13.6 L18.8 21 L12 16.4 L5.2 21 L7.8 13.6 L1.6 9.1 H9.4 Z"
-        fill="url(#starGrad${id})" stroke="${GOLD}" stroke-width=".65" stroke-linejoin="round"/>
+  // Gold 5-point star
+  const starSVG = (size: number) =>
+    `<svg width="${size}" height="${size}" viewBox="0 0 20 20">
+      <polygon points="10,1 12.9,7 19.5,7.6 14.8,12 16.2,18.5 10,15 3.8,18.5 5.2,12 0.5,7.6 7.1,7"
+               fill="#C8A84B"/>
     </svg>`;
 
-  const footerStar = `<svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M12 2 L14 9 H21 L15.5 13 L17.5 20 L12 16 L6.5 20 L8.5 13 L3 9 H10 Z"
-      fill="${GOLD_LIGHT}" stroke="${GOLD}" stroke-width=".6"/>
-  </svg>`;
-
-  const iconAward = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <circle cx="12" cy="9" r="6" stroke="${GOLD}" stroke-width="1.5" fill="rgba(212,175,55,.12)"/>
-    <path d="M8.5 14 L7 20 L12 17 L17 20 L15.5 14" stroke="${GOLD}" stroke-width="1.3" fill="none" stroke-linejoin="round"/>
-  </svg>`;
-
-  const donutR = 40;
-  const donutCx = 48;
-  const donutCirc = 2 * Math.PI * donutR;
-  const donutFill = (score / 100) * donutCirc;
-  const donutGap = donutCirc - donutFill;
-  const scoreDonutSVG = `<svg width="108" height="108" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <defs>
-      <linearGradient id="donutGold" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#f1c40f"/>
-        <stop offset="50%" stop-color="#d4af37"/>
-        <stop offset="100%" stop-color="#b8963E"/>
-      </linearGradient>
-      <radialGradient id="donutGlow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stop-color="rgba(212,175,55,.18)"/>
-        <stop offset="100%" stop-color="rgba(212,175,55,0)"/>
-      </radialGradient>
-    </defs>
-    <circle cx="${donutCx}" cy="${donutCx}" r="44" fill="url(#donutGlow)"/>
-    <circle cx="${donutCx}" cy="${donutCx}" r="${donutR}" fill="none" stroke="#e8e0d4" stroke-width="6"/>
-    <circle cx="${donutCx}" cy="${donutCx}" r="${donutR}" fill="none" stroke="url(#donutGold)" stroke-width="6"
-      stroke-dasharray="${donutFill.toFixed(2)} ${donutGap.toFixed(2)}"
-      stroke-linecap="round" transform="rotate(-90 ${donutCx} ${donutCx})"/>
-    <text x="${donutCx}" y="${donutCx + 1}" text-anchor="middle" dominant-baseline="middle"
-      font-family="Lato,sans-serif" font-size="22" font-weight="900" fill="${BLUE}">${score}%</text>
-  </svg>`;
+  const cornerImg = `<img src="${recyclingLogo}" alt="" width="${CORNER_LOGO_PX}" height="${CORNER_LOGO_PX}" class="ci-img">`;
 
   return `<!DOCTYPE html>
 <html dir="${t.dir}">
@@ -282,353 +282,445 @@ function buildHTML(opts: CertificateOptions): string {
 <meta charset="UTF-8">
 <link href="${gFont}" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{
-  width:1122px;height:794px;overflow:hidden;
-  font-family:${bodyF};
-}
+*{ margin:0; padding:0; box-sizing:border-box }
+html,body{ width:1122px; height:794px; overflow:hidden; font-family:${bodyF} }
 
+/* ── PAGE ── */
 .page{
-  width:1122px;height:794px;
-  position:relative;overflow:hidden;
-  background:linear-gradient(165deg,#faf8f4 0%,#f8f5ef 42%,#f2ede4 100%);
-}
-.page::before{
-  content:"";
-  position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:
-    radial-gradient(ellipse 70% 55% at 50% 42%,rgba(40,96,157,.07) 0%,transparent 68%),
-    repeating-linear-gradient(
-      0deg,
-      transparent,transparent 39px,
-      rgba(197,160,89,.025) 39px,rgba(197,160,89,.025) 40px
-    );
+  width:1122px; height:794px;
+  position:relative; overflow:hidden;
+  background: linear-gradient(160deg, #f8f3e8 0%, #f2ead8 50%, #ede4d0 100%);
 }
 
-/* Royal frame */
-.frame-outer{
-  position:absolute;inset:10px;z-index:10;pointer-events:none;
-  border:2.5px solid ${GOLD};
-  box-shadow:inset 0 1px 0 rgba(255,248,220,.35);
-}
-.frame-gap{
-  position:absolute;inset:14px;z-index:10;pointer-events:none;
-  border:2px solid #f8f5ef;
-}
-.frame-inner{
-  position:absolute;inset:18px;z-index:10;pointer-events:none;
-  border:1.5px solid ${BLUE};
-  opacity:.9;
-}
-
-.corner{position:absolute;z-index:12;line-height:0}
-.c-tl{top:21px;left:21px}
-.c-tr{top:21px;right:21px}
-.c-bl{bottom:21px;left:21px}
-.c-br{bottom:21px;right:21px}
-
-/* Background Averda watermark — subtle, behind centred content */
-.cert-wm{
+/* ── INNER FRAME CONTENT (inside light-blue cadre) ── */
+.frame-content{
   position:absolute;
-  top:50%;left:50%;
-  transform:translate(-50%,-54%);
-  width:520px;
-  max-width:78%;
-  opacity:0.048;
-  z-index:0;
-  pointer-events:none;
-  filter:grayscale(35%) sepia(5%) hue-rotate(192deg);
+  top:${INNER_INSET}px;
+  left:${INNER_INSET}px;
+  right:${INNER_INSET}px;
+  bottom:${INNER_INSET}px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  align-items:center;
+  padding:8px 28px 6px;
+  z-index:5;
+  overflow:hidden;
 }
-.cert-wm img{width:100%;height:auto;display:block;object-fit:contain}
 
-.cert{
-  position:relative;z-index:2;
-  display:flex;flex-direction:column;
-  height:100%;
-  padding:12px 80px 24px;
-  margin:20px;
+/* ── HEADER ── */
+.header-block{
+  flex-shrink:0;
+  width:100%;
+  display:flex; flex-direction:column; align-items:center;
+  text-align:center;
+  padding:0;
+  position:relative; z-index:2;
   direction:${t.dir};
 }
 
-/* Three-zone layout: header · body · footer */
-.cert-stack{
+/* ── MAIN (name + body + medal) ── */
+.main-block{
   flex:1;
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:space-between;
-  position:relative;z-index:2;
   width:100%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center;
+  padding:2px 12px;
+  gap:4px;
+  position:relative; z-index:2;
+  direction:${t.dir};
   min-height:0;
-  padding:28px 0 22px;
 }
 
-/* ── Header zone ── */
-.cert-header{
+/* ── FOOTER (date | seal | company) ── */
+.footer-block{
   flex-shrink:0;
-  text-align:center;
   width:100%;
-  max-width:720px;
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:end;
+  gap:16px;
+  padding:0 4px 2px;
+  position:relative; z-index:2;
+  direction:ltr;
 }
-.logo-hero{
-  height:${isRTL ? "54px" : "50px"};
-  width:auto;
+.footer-date{
+  display:flex; flex-direction:column;
+  align-items:flex-start;
+  text-align:left;
+}
+.footer-sign{
+  display:flex; flex-direction:column;
+  align-items:center;
+  justify-content:flex-end;
+  text-align:center;
+  padding-bottom:2px;
+}
+.footer-company{
+  display:flex; flex-direction:column;
+  align-items:flex-end;
+  text-align:right;
+}
+
+/* ── FAINT WATERMARK ── */
+.wm{
+  position:absolute;
+  top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  width:480px; opacity:0.042;
+  z-index:0; pointer-events:none;
+  filter:grayscale(1);
+}
+
+/* ── BORDERS (segments meet at corner-logo centers) ── */
+.b-outer-h,.b-inner-h{
+  position:absolute; left:${CORNER_INSET}px; right:${CORNER_INSET}px;
+  height:2.5px; z-index:10; pointer-events:none;
+}
+.b-outer-v,.b-inner-v{
+  position:absolute; top:${CORNER_INSET}px; bottom:${CORNER_INSET}px;
+  width:2.5px; z-index:10; pointer-events:none;
+}
+.b-outer-h{ background:#1a5fa8; }
+.b-outer-v{ background:#1a5fa8; }
+.b-inner-h{
+  height:1px; background:rgba(26,95,168,.4);
+  left:${INNER_INSET}px; right:${INNER_INSET}px;
+}
+.b-inner-v{
+  width:1px; background:rgba(26,95,168,.4);
+  top:${INNER_INSET}px; bottom:${INNER_INSET}px;
+}
+.b-outer-top{ top:${CORNER_INSET}px; }
+.b-outer-bot{ bottom:${CORNER_INSET}px; }
+.b-outer-left{ left:${CORNER_INSET}px; }
+.b-outer-right{ right:${CORNER_INSET}px; }
+.b-inner-top{ top:${INNER_INSET}px; }
+.b-inner-bot{ bottom:${INNER_INSET}px; }
+.b-inner-left{ left:${INNER_INSET}px; }
+.b-inner-right{ right:${INNER_INSET}px; }
+
+/* ── CORNER RECYCLING LOGOS ── */
+.ci{
+  position:absolute; z-index:13;
+  width:${CORNER_LOGO_PX}px; height:${CORNER_LOGO_PX}px;
+  transform:translate(-50%,-50%);
+  line-height:0; pointer-events:none;
+}
+.ci-tl{ top:${CORNER_INSET}px; left:${CORNER_INSET}px; }
+.ci-tr{ top:${CORNER_INSET}px; left:calc(100% - ${CORNER_INSET}px); }
+.ci-bl{ top:calc(100% - ${CORNER_INSET}px); left:${CORNER_INSET}px; }
+.ci-br{ top:calc(100% - ${CORNER_INSET}px); left:calc(100% - ${CORNER_INSET}px); }
+.ci-img{
+  width:${CORNER_LOGO_PX}px !important;
+  height:${CORNER_LOGO_PX}px !important;
   object-fit:contain;
   display:block;
-  margin:0 auto 12px;
 }
+
+/* ── GOLD TOP BAR ── */
+.gold-bar-top{
+  position:absolute; top:${CORNER_INSET - 6}px; left:${CORNER_INSET + 8}px; right:${CORNER_INSET + 8}px;
+  height:2px;
+  background:linear-gradient(90deg,transparent,#C8A84B 15%,#e8d070 50%,#C8A84B 85%,transparent);
+  z-index:9;
+}
+/* ── GOLD BOTTOM BAR ── */
+.gold-bar-bot{
+  position:absolute; bottom:${CORNER_INSET - 6}px; left:${CORNER_INSET + 8}px; right:${CORNER_INSET + 8}px;
+  height:2px;
+  background:linear-gradient(90deg,transparent,#C8A84B 15%,#e8d070 50%,#C8A84B 85%,transparent);
+  z-index:9;
+}
+
+/* ── CONTENT TYPOGRAPHY ── */
+.logo{ height:36px; object-fit:contain; margin-bottom:3px }
+
+/* ── TAGLINE ── */
+.tagline{
+  font-family:${bodyF};
+  font-size:${isRTL ? "10px" : "7.5px"};
+  color:#1a5fa8; font-weight:700;
+  letter-spacing:${isRTL ? "0" : "3px"};
+  text-transform:uppercase;
+  margin-bottom:5px;
+}
+
+/* ── TITLE ROW ── */
 .title-row{
-  display:flex;align-items:center;justify-content:center;
-  gap:14px;
-}
-.title-row svg{
-  flex-shrink:0;
-  filter:drop-shadow(0 1px 2px rgba(197,160,89,.25));
+  display:flex; align-items:center; justify-content:center;
+  margin-bottom:2px;
 }
 .main-title{
   font-family:${titleF};
-  font-size:${isRTL ? "31px" : "27px"};
-  font-weight:700;
-  color:${BLUE};
-  line-height:1.2;
-  padding:0 10px;
-  letter-spacing:${isRTL ? "0.02em" : "0.06em"};
+  font-size:${isRTL ? "40px" : "36px"};
+  font-weight:700; color:#0A3161;
+  line-height:1; white-space:nowrap;
 }
-.header-rule{
-  width:min(420px,70%);height:1px;margin:10px auto 0;
-  background:linear-gradient(90deg,transparent,${GOLD_LIGHT} 22%,${GOLD} 50%,${GOLD_LIGHT} 78%,transparent);
+
+/* ── STARS ROW ── */
+.stars-row{
+  display:flex; align-items:center; gap:8px;
+  margin-bottom:4px;
 }
+.star-line{
+  flex:1; max-width:160px; height:1px;
+  background:linear-gradient(90deg,transparent,#C8A84B,transparent);
+}
+
+/* ── ACADEMY BADGE ── */
 .academy-badge{
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  margin-top:10px;
-  padding:5px 16px;
-  border:1px solid rgba(197,160,89,.5);
-  border-radius:20px;
-  font-size:${isRTL ? "9px" : "8px"};
-  font-weight:700;
-  color:${BLUE};
-  letter-spacing:${isRTL ? "0.03em" : "0.1em"};
-  text-transform:${isRTL ? "none" : "uppercase"};
-  background:rgba(255,255,255,.55);
-  box-shadow:0 1px 4px rgba(40,96,157,.06);
+  display:inline-flex; align-items:center; gap:6px;
+  border:1px solid #1a5fa8; border-radius:20px;
+  padding:3px 14px;
+  font-family:${bodyF};
+  font-size:${isRTL ? "11px" : "9px"};
+  color:#1a5fa8; font-weight:600;
+  margin-bottom:6px;
 }
-.academy-badge svg{flex-shrink:0}
+.badge-dot{ width:6px; height:6px; border-radius:50%; background:#1a5fa8 }
 
-/* ── Body zone (name unchanged) ── */
-.cert-main{
-  flex:1;
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
-  width:100%;
-  max-width:760px;
-  padding:20px 20px 16px;
+/* ── GOLD SEPARATOR ── */
+.gold-sep{
+  width:80%; height:1.5px;
+  background:linear-gradient(90deg,transparent,#C8A84B 20%,#e8d070 50%,#C8A84B 80%,transparent);
+  margin:4px auto;
+}
+.gold-sep-sm{
+  width:45%; height:1.5px;
+  background:linear-gradient(90deg,transparent,#C8A84B 20%,#e8d070 50%,#C8A84B 80%,transparent);
+  margin:2px auto 4px;
 }
 
-.name-stage{
-  position:relative;
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
-  text-align:center;
-  padding:0;
-}
+/* ── AWARDED TO ── */
 .awarded{
-  position:relative;z-index:1;
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  font-size:${isRTL ? "12px" : "9px"};
-  color:#7a8a9a;
-  letter-spacing:${isRTL ? "0.04em" : "0.22em"};
-  text-transform:${isRTL ? "none" : "uppercase"};
-  margin-bottom:14px;
-  font-weight:600;
+  font-family:${bodyF};
+  font-size:${isRTL ? "11px" : "9px"};
+  color:#777;
+  letter-spacing:${isRTL ? "0" : "2px"};
+  margin-bottom:4px;
 }
-.name-accent{
-  position:relative;z-index:1;
-  width:min(600px,92%);height:2px;
-  background:linear-gradient(90deg,transparent,#c5a059 8%,#d4af37 50%,#c5a059 92%,transparent);
-}
-.name-accent-top{margin-bottom:14px}
-.name-accent-bottom{margin-top:14px}
 
+/* ── RECIPIENT NAME ── */
 .name{
-  position:relative;z-index:1;
-  font-family:${nameF};
-  font-size:${isRTL ? "72px" : "74px"};
-  font-weight:700;
-  color:${BLUE};
-  line-height:1.05;
-  width:100%;
+  font-family:${titleF};
+  font-size:${isRTL ? "46px" : "48px"};
+  font-weight:${isRTL ? "700" : "600"};
+  color:#0A3161; line-height:1.05;
+  margin-bottom:2px;
+  direction:${t.dir}; unicode-bidi:plaintext;
   text-align:center;
-  display:block;
-  margin:0 auto;
-  padding:4px 12px;
-  direction:${t.dir};
-  unicode-bidi:plaintext;
-  text-shadow:0 1px 0 rgba(255,255,255,.95),0 3px 20px rgba(40,96,157,.1);
-  letter-spacing:${isRTL ? "0" : ".5px"};
 }
 
-.body-score{
-  flex-shrink:0;
-  display:flex;flex-direction:column;align-items:center;
-  margin:16px auto 18px;
-  position:relative;z-index:1;
-  padding:4px 8px 2px;
-}
-.score-donut{line-height:0;display:block;filter:drop-shadow(0 4px 12px rgba(40,96,157,.12))}
-.score-cap{
-  font-size:${isRTL ? "9px" : "8px"};
-  color:${BLUE};
-  margin-top:8px;
-  letter-spacing:${isRTL ? "0.02em" : "0.12em"};
-  text-transform:${isRTL ? "none" : "uppercase"};
-  font-weight:700;
-  opacity:.75;
-}
-
+/* ── BODY TEXT ── */
 .body-tx{
-  flex-shrink:0;
-  position:relative;z-index:1;
-  font-size:${isRTL ? "12.5px" : "10.5px"};
-  color:#445063;
-  line-height:1.88;
-  max-width:660px;
-  margin:0 auto;
-  padding:0 8px;
-  text-align:center;
+  font-family:${bodyF};
+  font-size:${isRTL ? "11.5px" : "10.5px"};
+  color:#444; line-height:1.65;
+  max-width:700px; margin:0 auto 6px;
+  direction:${t.dir};
 }
 
-/* ── Footer zone ── */
-.footer-band{
-  flex-shrink:0;
-  width:100%;
-  max-width:760px;
-  padding:10px 24px 4px;
-  margin-top:0;
+/* ── FOOTER CELLS ── */
+.b-date-lbl{
+  font-family:${bodyF};
+  font-size:${isRTL ? "9px" : "7px"};
+  color:#999; letter-spacing:${isRTL ? "0" : "2px"};
+  text-transform:uppercase; margin-bottom:2px;
 }
-.footer-ornament{
+.b-date{
+  font-family:${bodyF};
+  font-size:${isRTL ? "14px" : "12px"};
+  font-weight:700; color:#0A3161;
+  white-space:nowrap;
+}
+.b-date--rtl{
+  direction:rtl;
+  unicode-bidi:plaintext;
+  text-align:right;
+}
+.b-cert-id{
+  font-family:'Lato',sans-serif;
+  font-size:8px; color:#bbb; margin-top:3px;
+  letter-spacing:1px;
+}
+
+.b-from-lbl{
+  font-family:${bodyF};
+  font-size:${isRTL ? "9px" : "7px"};
+  color:#999; letter-spacing:${isRTL ? "0" : "2px"};
+  text-transform:uppercase; margin-bottom:2px;
+}
+.b-company{
+  font-family:${bodyF};
+  font-size:${isRTL ? "14px" : "12px"};
+  font-weight:700; color:#0A3161;
+}
+.seal-stamp{
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  border:2px solid rgba(26,95,168,.45);
+  border-radius:50%;
+  width:84px; height:84px;
+  text-align:center;
+  padding:8px;
+  background:rgba(255,255,255,.35);
+  box-shadow:0 2px 8px rgba(26,95,168,.08);
+}
+.seal-line1{
+  font-family:'Lato',sans-serif;
+  font-size:6.5px; font-weight:700; color:#1a5fa8;
+  letter-spacing:.4px; text-transform:uppercase;
+  line-height:1.15;
+}
+.seal-line2{
+  font-family:${bodyF};
+  font-size:${isRTL ? "7.5px" : "6.5px"}; font-weight:600; color:#0A3161;
+  line-height:1.2; margin-top:3px;
+}
+.seal-ceo{
+  font-family:${bodyF};
+  font-size:5.5px; color:#888;
+  margin-top:3px; line-height:1.1;
+}
+
+/* ── MEDAL (image asset + score overlay) ── */
+.medal-wrap{
+  display:flex; flex-direction:column; align-items:center;
+  margin-top:4px;
+}
+
+.medal-lbl{
+  font-family:${bodyF};
+  font-size:${isRTL ? "10px" : "8px"};
+  color:#888;
+  letter-spacing:${isRTL ? "0" : "1.5px"};
+  text-transform:uppercase;
+  margin-bottom:5px;
+}
+
+.medal-img-wrap{
+  position:relative;
+  width:${MEDAL_IMG_PX}px;
+  height:${MEDAL_IMG_PX}px;
+  line-height:0;
+}
+.medal-img{
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:contain;
+}
+.medal-disc{
+  position:absolute;
+  left:${MEDAL_DISC.left};
+  top:${MEDAL_DISC.top};
+  width:${MEDAL_DISC.width};
+  height:${MEDAL_DISC.height};
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:10px;
-  margin-bottom:14px;
+  pointer-events:none;
 }
-.footer-ornament-line{
-  flex:1;
-  max-width:220px;
-  height:1px;
-  background:linear-gradient(90deg,transparent,${GOLD_LIGHT} 35%,${GOLD} 50%,${GOLD_LIGHT} 65%,transparent);
-}
-.footer-ornament-star{
-  line-height:0;
-  flex-shrink:0;
-  opacity:.92;
-}
-.footer-grid{
-  display:flex;
-  align-items:flex-end;
-  justify-content:space-between;
-  gap:32px;
-  width:100%;
-  direction:${isRTL ? "rtl" : "ltr"};
-}
-.footer-block{
-  display:flex;
-  flex-direction:column;
-  gap:2px;
-  min-width:0;
-}
-.footer-issuer{
-  align-items:${isRTL ? "flex-end" : "flex-start"};
-  text-align:${isRTL ? "right" : "left"};
-}
-.footer-date{
-  align-items:${isRTL ? "flex-start" : "flex-end"};
-  text-align:${isRTL ? "left" : "right"};
-}
-.footer-lbl{
-  font-size:${isRTL ? "8px" : "7px"};
-  color:#8b95a3;
-  line-height:1.1;
-  letter-spacing:${isRTL ? "0" : "0.14em"};
-  text-transform:${isRTL ? "none" : "uppercase"};
-  font-weight:700;
-}
-.footer-val{
-  font-size:${isRTL ? "13px" : "11px"};
-  font-weight:700;
-  color:${BLUE};
-  line-height:1.2;
-  letter-spacing:${isRTL ? "0" : "0.02em"};
-}
-.footer-ref{
-  margin-top:10px;
-  text-align:center;
-  font-size:6.5px;
-  color:#a0aab4;
-  letter-spacing:1.1px;
+.medal-num{
   font-family:'Lato',sans-serif;
-  opacity:.85;
+  font-size:22px;
+  font-weight:900;
+  color:#3a2000;
+  text-shadow:0 1px 0 rgba(255,240,120,.95), 0 1px 3px rgba(0,0,0,.15);
+  line-height:1;
+  direction:ltr;
+  unicode-bidi:plaintext;
 }
 </style>
 </head>
 <body>
 <div class="page">
 
-  <div class="frame-outer"></div>
-  <div class="frame-gap"></div>
-  <div class="frame-inner"></div>
+  <!-- watermark -->
+  <img class="wm" src="${logo}" alt="">
 
-  <div class="corner c-tl">${cornerBracket("tl")}</div>
-  <div class="corner c-tr">${cornerBracket("tr")}</div>
-  <div class="corner c-bl">${cornerBracket("bl")}</div>
-  <div class="corner c-br">${cornerBracket("br")}</div>
+  <!-- borders (corners at recycling-logo centers) -->
+  <div class="b-outer-h b-outer-top"></div>
+  <div class="b-outer-h b-outer-bot"></div>
+  <div class="b-outer-v b-outer-left"></div>
+  <div class="b-outer-v b-outer-right"></div>
+  <div class="b-inner-h b-inner-top"></div>
+  <div class="b-inner-h b-inner-bot"></div>
+  <div class="b-inner-v b-inner-left"></div>
+  <div class="b-inner-v b-inner-right"></div>
 
-  <div class="cert">
-    <div class="cert-wm"><img src="${logo}" alt=""></div>
-    <div class="cert-stack">
-    <header class="cert-header">
-      <img class="logo-hero" src="${logo}" alt="Averda">
-      <div class="title-row">
-        ${titleStar("L")}
-        <h1 class="main-title">${t.mainTitle}</h1>
-        ${titleStar("R")}
-      </div>
-      <div class="header-rule"></div>
-      <div class="academy-badge">${iconAward}<span>${t.academy}</span></div>
-    </header>
+  <!-- gold bars -->
+  <div class="gold-bar-top"></div>
+  <div class="gold-bar-bot"></div>
 
-    <section class="cert-main">
-      <div class="name-stage">
-        <p class="awarded">${iconAward}<span>${t.awardedTo}</span></p>
-        <div class="name-accent name-accent-top"></div>
-        <div class="name">${opts.recipientName}</div>
-        <div class="name-accent name-accent-bottom"></div>
-      </div>
-      <div class="body-score">
-        <span class="score-donut">${scoreDonutSVG}</span>
-        <span class="score-cap">${t.scoreLabel}</span>
-      </div>
-      <p class="body-tx">${bodyTx}</p>
-    </section>
+  <!-- corner recycling logos -->
+  <div class="ci ci-tl">${cornerImg}</div>
+  <div class="ci ci-tr">${cornerImg}</div>
+  <div class="ci ci-bl">${cornerImg}</div>
+  <div class="ci ci-br">${cornerImg}</div>
 
-    <div class="footer-band">
-      <div class="footer-ornament">
-        <span class="footer-ornament-line"></span>
-        <span class="footer-ornament-star">${footerStar}</span>
-        <span class="footer-ornament-line"></span>
-      </div>
-      <div class="footer-grid">
-        <div class="footer-block footer-issuer">
-          <span class="footer-lbl">${t.from}</span>
-          <span class="footer-val">${t.company}</span>
-        </div>
-        <div class="footer-block footer-date">
-          <span class="footer-lbl">${t.dateLabel}</span>
-          <span class="footer-val">${dateStr}</span>
-        </div>
-      </div>
-      <p class="footer-ref">${certId}</p>
+  <div class="frame-content">
+
+  <!-- HEADER -->
+  <div class="header-block">
+    <img class="logo" src="${logo}" alt="Averda">
+    <div class="tagline">${t.tagline}</div>
+    <div class="title-row">
+      <div class="main-title">${t.mainTitle}</div>
     </div>
+    <div class="stars-row">
+      <div class="star-line"></div>
+      ${starSVG(14)}
+      ${starSVG(18)}
+      ${starSVG(14)}
+      <div class="star-line"></div>
+    </div>
+    <div class="academy-badge">
+      <div class="badge-dot"></div>
+      ${t.academy}
+      <div class="badge-dot"></div>
     </div>
   </div>
+
+  <!-- MAIN (name + body + medal) -->
+  <div class="main-block">
+    <div class="awarded">${t.awardedTo}</div>
+    <div class="name">${safeName}</div>
+    <div class="gold-sep-sm"></div>
+    <div class="body-tx">${bodyTx}</div>
+    <div class="medal-wrap">
+      <div class="medal-lbl">${t.scoreLabel}</div>
+      <div class="medal-img-wrap">
+        <img class="medal-img" src="${medalLogo}" alt="">
+        <div class="medal-disc">
+          <div class="medal-num">${score}%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER (date | seal | company) -->
+  <div class="footer-block">
+    <div class="footer-date">
+      <div class="b-date-lbl">${t.dateLabel}</div>
+      <div class="b-date${isRTL ? " b-date--rtl" : ""}">${dateStr}</div>
+      <div class="b-cert-id">${certId}</div>
+    </div>
+    <div class="footer-sign">
+      <div class="seal-stamp">
+        <div class="seal-line1">${t.sealLine1}</div>
+        <div class="seal-line2">${t.sealLine2}</div>
+        <div class="seal-ceo">${t.ceo}</div>
+      </div>
+    </div>
+    <div class="footer-company">
+      <div class="b-from-lbl">${t.from}</div>
+      <div class="b-company">${t.company}</div>
+    </div>
+  </div>
+
+  </div><!-- /.frame-content -->
 
 </div>
 </body>
@@ -704,7 +796,6 @@ export async function generateTrainingCertificate(params: {
   const outPath = path.join(certDir, filename);
   const lang = params.language ?? "AR";
 
-  // Always render fresh — avoids serving a PDF from a previous server process / template.
   try {
     if (fs.existsSync(outPath)) fs.unlinkSync(outPath);
   } catch {
